@@ -14,7 +14,7 @@ def plot_attractor():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     ##### create data #####
-    X, Y, X_test, Y_test, g = sol.create_data(0, 25, torch.Tensor([0., 1.]), 10501, n_train=10000, n_test=500, n_nodes=2, n_trans=0)
+    X, Y, X_test, Y_test, g = sol.create_data(0, 25, torch.Tensor([0., 1.]), 10501, n_train=1000, n_test=500, n_nodes=2, n_trans=0)
 
     # for debug
     #X_csv = np.asarray(X)
@@ -42,7 +42,7 @@ def plot_attractor():
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(m.parameters(), lr=5e-4, weight_decay =5e-4)
 
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
+    pred_train, true_train, pred_test, loss_hist, test_loss_hist, fig = sol.train(m,
                                                                              device,
                                                                              X,
                                                                              Y,
@@ -81,7 +81,7 @@ def plot_attractor():
     Time_space = plt.figure(figsize=(40,10))
     plt.style.use('_mpl-gallery')
 
-    num_timestep = 5000
+    num_timestep = 1000
     x = list(range(0,num_timestep))
     #x_test = list(range(len(test_iter)))
     x_loss = list(range(0,num_epoch))
@@ -111,16 +111,10 @@ def plot_attractor():
     plt.tight_layout()
     plt.show()
 
-    return Phase_space, Time_space
+    return Phase_space, Time_space, fig
 
-
-    #x0 = random.rand(2)
-    #for t in range(t_plot):
-        # call model_final(x)
-        # call the ode solver
-        # plot attractor
     
-phase, time = plot_attractor() 
+phase, time, fig = plot_attractor() 
 plt.show()
 
 

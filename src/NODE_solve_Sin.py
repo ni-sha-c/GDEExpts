@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torchdiffeq
 import numpy as np
+import matplotlib.pyplot as plt
+import os
+#os.makedirs("PNG")
 
 from examples.Sin import sin
 from src.neuralODE_Sin import ODEBlock, ODEFunc
@@ -114,21 +117,6 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
         model.train()
         model.double()
 
-        # TODO: remove for loop!
-        # Check if removing for loop and with for loop gives the same kind of loss
-        # Then understand vectorization. During vectorization, every input is computed independently.
-        # Run perfectly periodic system like sin and see if it gives exactly same result
-        # It should also work on GDE.
-        # save training loss value in csv before and after! So that there is no difference between changing the 
-        # Let's add validation loss too.
-        # Question: it converges to X rather than X+1 (if I let it run for a while, then ...)
-
-        #y_pred = torch.zeros(len(train_iter), 1, 2)
-        #y_true = torch.zeros(len(train_iter), 1, 2)
-        #k = 0
-        #x_train = torch.zeros(len(train_iter), 1, 2)
-
-        #for xk,yk in train_iter:
         X = X.to(device)
         Y = Y.to(device)
 
@@ -152,34 +140,47 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
         print(num_grad_steps, train_loss)
 
         ##### test #####
-        pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion)
+        fig, pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i)
 
-    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, fig
 
 
-def evaluate(model, X_test, Y_test, device, criterion):
+def evaluate(model, X_test, Y_test, device, criterion, iter):
   test_loss_hist = []
 
   with torch.no_grad():
     model.eval()
-    #k = 0
 
-    #for x,y in test_iter:
     X = X_test.to(device)
     Y = Y_test.to(device)
+
+    test_t = torch.linspace(0, 50, X.shape[0])
 
     # calculating outputs again with zeroed dropout
     y_pred_test = model(X)
 
     # save predicted node feature for analysis
     pred_test = y_pred_test.detach()
-    #k += 1
 
     test_loss = criterion(pred_test, Y).item()
     test_loss_hist.append(test_loss)
-    #print("test loss: ", test_loss)
+
+    if iter % 200 == 0:
+        figure = plt.figure(figsize=(10, 7.5))
+        plt.title(f"Iteration {iter}")
+        plt.plot(test_t, pred_test[:, 0], c='C0', ls='--', label='Prediction')
+        plt.plot(test_t, Y[:, 0], c='C1', ls='--', label='Ground Truth')
+        plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.xlabel('t')
+        plt.ylabel('y')
+        plt.legend(loc='best')
+        plt.savefig('PNG/'+str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.show()
+        plt.close("all")
+
+
     
-  return pred_test, test_loss_hist
+  return figure, pred_test, test_loss_hist
 
 
 
