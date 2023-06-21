@@ -6,7 +6,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
-from src import solve_ode_with_nn as sol 
+from src import NODE_solve_Brusselator as sol 
 
 def plot_attractor():
     ''' func: plotting the attractor '''

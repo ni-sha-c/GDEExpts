@@ -4,7 +4,7 @@ import torchdiffeq
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-#os.makedirs("PNG")
+#os.makedirs("trajectory_sin_png")
 
 from examples.Sin import sin
 from src.neuralODE_Sin import ODEBlock, ODEFunc
@@ -140,9 +140,9 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
         print(num_grad_steps, train_loss)
 
         ##### test #####
-        fig, pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i)
+        pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i)
 
-    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, fig
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
 
 def evaluate(model, X_test, Y_test, device, criterion, iter):
@@ -165,22 +165,19 @@ def evaluate(model, X_test, Y_test, device, criterion, iter):
     test_loss = criterion(pred_test, Y).item()
     test_loss_hist.append(test_loss)
 
-    if iter % 200 == 0:
-        figure = plt.figure(figsize=(10, 7.5))
+    if iter % 500 == 0:
+        plt.figure(figsize=(10, 7.5))
         plt.title(f"Iteration {iter}")
         plt.plot(test_t, pred_test[:, 0], c='C0', ls='--', label='Prediction')
-        plt.plot(test_t, Y[:, 0], c='C1', ls='--', label='Ground Truth')
-        plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.plot(test_t, Y[:, 0], c='C1', label='Ground Truth', alpha=0.7)
+        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
         plt.xlabel('t')
         plt.ylabel('y')
         plt.legend(loc='best')
-        plt.savefig('PNG/'+str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-        plt.show()
+        plt.savefig('trajectory_sin_png/'+str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
-
-
     
-  return figure, pred_test, test_loss_hist
+  return pred_test, test_loss_hist
 
 
 

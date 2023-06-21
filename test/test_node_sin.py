@@ -10,18 +10,13 @@ from src import NODE_solve_Sin as sol
 
 def plot_attractor():
     ''' func: plotting the attractor '''
+    # train loss:  3.065560933961977e-13
+    # test loss:  2.933217361852054e-08
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     ##### create data #####
-    X, Y, X_test, Y_test, g = sol.create_data(0, 25, torch.Tensor([0., 1.]), 10501, n_train=1000, n_test=500, n_nodes=2, n_trans=0)
-
-    # for debug
-    #X_csv = np.asarray(X)
-    #Y_csv = np.asarray(Y)
-    #np.savetxt("training_X_sin.csv", X_csv, delimiter=",")
-    #np.savetxt("training_Y_sin.csv", Y_csv, delimiter=",")
-    
+    X, Y, X_test, Y_test, g = sol.create_data(0, 25, torch.Tensor([0., 1.]), 10501, n_train=1000, n_test=3000, n_nodes=2, n_trans=0)
 
     ##### create dataloader #####
     train_iter, test_iter = sol.data_loader(X, Y, X_test, Y_test)
@@ -32,17 +27,12 @@ def plot_attractor():
     print("created model!")
 
     ##### train #####
-    # 1200 was really great! with learning rate of 1e-3 (with tanh: 1.0507361708969915e-06) with num_data = 50000
-    # 1300, 7.730283863426183e-07
-    # 1400, 6.280127179276023e-07
-    # 1800 with learning rate 7e-4 was great too! train loss:  1.0625898875721338e-06
-    # prev: 5.121175193189696e-07, dropout 0.05
 
     num_epoch = 4000
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(m.parameters(), lr=5e-4, weight_decay =5e-4)
 
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist, fig = sol.train(m,
+    pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
                                                                              X,
                                                                              Y,
@@ -83,7 +73,6 @@ def plot_attractor():
 
     num_timestep = 1000
     x = list(range(0,num_timestep))
-    #x_test = list(range(len(test_iter)))
     x_loss = list(range(0,num_epoch))
 
     plt.subplot(2,2,1)
@@ -111,10 +100,10 @@ def plot_attractor():
     plt.tight_layout()
     plt.show()
 
-    return Phase_space, Time_space, fig
+    return Phase_space, Time_space
 
     
-phase, time, fig = plot_attractor() 
+phase, time= plot_attractor() 
 plt.show()
 
 
