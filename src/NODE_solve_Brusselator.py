@@ -3,6 +3,7 @@ import torch.nn as nn
 import torchdiffeq
 import numpy as np
 import dgl
+import matplotlib.pyplot as plt
 
 from examples.Brusselator import brusselator
 from src.neuralODE_Brusselator import ODEBlock, ODEFunc
@@ -127,8 +128,6 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
 
         # save predicted node feature for analysis
         y_pred = output.to(device)
-        print("true: ", Y[:2])
-        print("pred: ", y_pred[:2])
 
         optimizer.zero_grad()
         loss = criterion(y_pred, Y)
@@ -144,12 +143,12 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
         print(num_grad_steps, train_loss)
 
         ##### test #####
-        pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion)
+        pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i)
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
 
-def evaluate(model, X_test, Y_test, device, criterion):
+def evaluate(model, X_test, Y_test, device, criterion, iter):
   test_loss_hist = []
 
   with torch.no_grad():
@@ -157,16 +156,28 @@ def evaluate(model, X_test, Y_test, device, criterion):
 
     X = X_test.to(device)
     Y = Y_test.to(device)
+    test_t = torch.linspace(0, 50, X.shape[0])
 
     # calculating outputs again with zeroed dropout
     y_pred_test = model(X)
 
     # save predicted node feature for analysis
     pred_test = y_pred_test.detach()
-    #k += 1
 
     test_loss = criterion(pred_test, Y).item()
     test_loss_hist.append(test_loss)
+
+    if iter % 500 == 0:
+        plt.figure(figsize=(10, 7.5))
+        plt.title(f"Iteration {iter}")
+        plt.plot(test_t, pred_test[:, 0], c='C0', ls='--', label='Prediction')
+        plt.plot(test_t, Y[:, 0], c='C1', label='Ground Truth', alpha=0.7)
+        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.xlabel('t')
+        plt.ylabel('y')
+        plt.legend(loc='best')
+        plt.savefig('trajectory_brus_png/'+str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.close("all")
     
   return pred_test, test_loss_hist
 

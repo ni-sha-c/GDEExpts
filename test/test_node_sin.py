@@ -82,13 +82,13 @@ def plot_attractor():
     #plt.plot(x, x_train[:num_timestep, -1, substance_type], color='pink', alpha=0.7)
 
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
-    plt.title('Chemical substance type A prediction at {} epoch, Train'.format(num_epoch))
+    plt.title('Sin prediction at {} epoch, Train'.format(num_epoch))
 
     plt.subplot(2,2,2)
     plt.plot(pred_test[:num_timestep, 0], '--', linewidth=2)
     plt.plot(Y_test[:num_timestep, 0])
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1)])
-    plt.title('Chemical substance type A prediction at {} epoch, Test'.format(num_epoch))
+    plt.title('Sin prediction at {} epoch, Test'.format(num_epoch))
 
     ##### Plot Training Loss #####
     plt.subplot(2,2,3)

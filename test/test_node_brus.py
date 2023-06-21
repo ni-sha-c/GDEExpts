@@ -6,15 +6,17 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
-from src import revised_solve_ode_with_nn as sol 
+from src import NODE_solve_Brusselator as sol 
 
 def plot_attractor():
     ''' func: plotting the attractor '''
+    # train loss:  5.7104885118373735e-08
+    # test loss:  5.995462423718316e-08
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     ##### create data #####
-    X, Y, X_test, Y_test, g = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=500, n_nodes=2, n_trans=37000)
+    X, Y, X_test, Y_test, g = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
     ##### modify g #####
     #g = sol.modify_graph(g, device)
     ##### create dataloader #####
@@ -26,7 +28,7 @@ def plot_attractor():
     print("created model!")
 
     ##### train #####
-    num_epoch = 1000
+    num_epoch = 2000
     criterion = torch.nn.MSELoss() # before:AdamW, 1000 1.1621186481522746e-07
     optimizer = torch.optim.AdamW(m.parameters(), lr=1e-4, weight_decay =5e-4) # 1e-4
 
