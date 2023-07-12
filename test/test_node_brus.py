@@ -14,23 +14,21 @@ def plot_attractor():
     # test loss:  5.995462423718316e-08
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("device: ", device)
 
     ##### create data #####
-    X, Y, X_test, Y_test, g = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
-    ##### modify g #####
-    #g = sol.modify_graph(g, device)
-    ##### create dataloader #####
-    train_iter, test_iter = sol.data_loader(X, Y, X_test, Y_test)
+    X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
     print("created data!")
 
     ##### create model #####
-    m = sol.create_NODE(device)
+    m = sol.create_NODE(device, n_nodes=2)
     print("created model!")
 
     ##### train #####
-    num_epoch = 2000
+    num_epoch = 4000
     criterion = torch.nn.MSELoss() # before:AdamW, 1000 1.1621186481522746e-07
-    optimizer = torch.optim.AdamW(m.parameters(), lr=1e-4, weight_decay =5e-4) # 1e-4
+    lr=5e-4
+    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
@@ -45,18 +43,20 @@ def plot_attractor():
     print("test loss: ", test_loss_hist[-1])
 
     ##### Save Training Loss #####
+    optim_name = 'AdamW'
     loss_csv = np.asarray(loss_hist)
-    np.savetxt("training_loss.csv", loss_csv, delimiter=",")
+    np.savetxt('expt_brusselator/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
 
     ##### Plot Phase Space #####
-    Phase_space = plt.figure(figsize=(40,10))
-    plt.style.use('_mpl-gallery')
+    plt.figure(figsize=(40,10))
     plt.scatter(pred_test[:, 0], pred_test[:, 1]) # num_test_data x 1 x num_node
-    plt.scatter(X_test[:, 0], X_test[:, 1])
+    plt.scatter(Y_test[:, 0], Y_test[:, 1])
     plt.legend(['Pred', 'True'])
     plt.xticks()
     plt.yticks()
-    plt.tight_layout()
+    plt.savefig('expt_brusselator/' + optim_name + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.show()
+    plt.close()
 
     ##### Plot Time Space #####
     pred_train = np.array(pred_train)
@@ -65,20 +65,17 @@ def plot_attractor():
     pred_train_last = pred_train[-1]
     true_train_last = true_train[-1]
 
-    Time_space = plt.figure(figsize=(40,10))
-    plt.style.use('_mpl-gallery')
+    plt.figure(figsize=(40,10))
 
-    num_timestep = 500
+    num_timestep = 2000
     substance_type = 0
     x = list(range(0,num_timestep))
     x_loss = list(range(0,num_epoch))
 
     plt.subplot(2,2,1)
     plt.plot(x, pred_train_last[:num_timestep, substance_type], '--', linewidth=2)
-    plt.plot(x, true_train_last[:num_timestep, substance_type])
-    plt.plot(x, X[:num_timestep, substance_type])
-    #plt.plot(x, x_train[:num_timestep, -1, substance_type], color='pink', alpha=0.7)
-
+    plt.plot(x, true_train_last[:num_timestep, substance_type], alpha=0.7)
+    plt.plot(x, X[:num_timestep, substance_type], c='gray', alpha=0.5)
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Chemical substance type A prediction at {} epoch, Train'.format(num_epoch))
 
@@ -93,18 +90,18 @@ def plot_attractor():
     plt.subplot(2,2,3)
     plt.plot(x_loss, loss_hist)
     plt.title('Training Loss')
-    
     plt.xticks()
     plt.yticks()
-    plt.tight_layout()
+    plt.savefig('expt_brusselator/' + optim_name + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.show()
+    plt.close("all")
 
-    return Phase_space, Time_space
+    return 
 
 
 ##### run experiment #####    
-phase, time = plot_attractor() 
-plt.show()
+plot_attractor() 
+
 
 
 

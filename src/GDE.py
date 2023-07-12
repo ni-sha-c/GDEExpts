@@ -1,19 +1,11 @@
-# Code from Github
-# Until model definition
 # Author ...
 
 import math
-import numpy as np
-import scipy.sparse as sp
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.parameter import Parameter
-from torch.nn.modules.module import Module
 from typing import Callable
 import dgl
 import dgl.function as fn
-import torchdiffeq
 
 class GCNLayer(nn.Module):
     def __init__(self, g:dgl.DGLGraph, in_feats:int, out_feats:int, activation:Callable[[torch.Tensor], torch.Tensor],
@@ -45,12 +37,11 @@ class GCNLayer(nn.Module):
         # normalization by square root of src degree
         h = h * self.g.ndata['norm']
         self.g.ndata['h'] = h
-        print("----------")
-        print(h)
+
         self.g.update_all(fn.copy_u('h', 'm'),
                           fn.sum(msg='m', out='h'))
         h = self.g.ndata.pop('h')
-        print(h)
+
         # normalization by square root of dst degree
         h = h * self.g.ndata['norm']
         # bias
