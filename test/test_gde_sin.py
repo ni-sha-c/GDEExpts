@@ -31,9 +31,9 @@ def plot_attractor():
     print("created model!")
 
     ##### train #####
-    num_epoch = 200
+    num_epoch = 100
     criterion = torch.nn.MSELoss()
-    lr = 5e-4
+    lr = 1e-3
     optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4)
 
     pred_train, true_train, x_train, pred_test, true_test, loss_hist, test_loss_hist = sol.train(m,
@@ -82,7 +82,7 @@ def plot_attractor():
     plt.subplot(2,2,1)
     plt.plot(x, pred_train_last[:num_timestep, 0, 0], '--', linewidth=2)
     plt.plot(x, true_train_last[:num_timestep, 0, 0], linewidth=1.5, alpha=0.7)
-    plt.plot(x, X[:num_timestep, 0], c='gray', alpha=0.5, linewidth=1.5)
+    plt.plot(x, X[:num_timestep, 0], c='gray', alpha=0.6, linewidth=1.5)
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Sin prediction at {} epoch, Train'.format(num_epoch))
 

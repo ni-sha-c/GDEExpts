@@ -103,8 +103,8 @@ def create_NODE(device, g):
     # define NODE model
     torch.manual_seed(42)
 
-    gnn = nn.Sequential(GCNLayer(g=g, in_feats=1, out_feats=64, activation=nn.Tanh(), dropout=0.),
-                        GCNLayer(g=g, in_feats=64, out_feats=1, activation=None, dropout=0.)).to(device)
+    gnn = nn.Sequential(GCNLayer(g=g, in_feats=1, out_feats=128, activation=nn.Tanh(), dropout=0.),
+                        GCNLayer(g=g, in_feats=128, out_feats=128, activation=None, dropout=0.),GCNLayer(g=g, in_feats=128, out_feats=1, activation=None, dropout=0.)).to(device)
     neural_func = GDEFunc(gnn).to(device)
     node = ODEBlock(T=0.025, odefunc=neural_func, method='euler', atol=1e-6, rtol=1e-6, adjoint=True).to(device)
 
