@@ -34,10 +34,7 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     res = simulate(ti, tf, init_state, num_state)
 
     ##### create graph #####
-    u = torch.Tensor([0])
-    v = torch.tensor([1])
-    # g = dgl.graph((u, v), num_nodes=2)
-    g = dgl.graph([(0, 0), (1, 1)])
+    g = dgl.graph([(0, 1), (0, 1)])
     #g.ndata["feat"] = res[n_trans-1]
     #g.ndata["label"] = res[n_trans-1]
 
