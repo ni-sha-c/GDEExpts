@@ -18,6 +18,11 @@ def plot_attractor():
 
     ##### create data #####
     X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
+    
+    ##### create data for extrapolation #####
+    true_traj = sol.simulate(800, 1600, torch.Tensor([1,3]), 40001)
+    true_traj = true_traj[37000:]
+    print("testing initial point: ", true_traj[0])
     print("created data!")
 
     ##### create model #####
@@ -26,7 +31,7 @@ def plot_attractor():
 
     ##### train #####
     num_epoch = 4000
-    criterion = torch.nn.MSELoss() # before:AdamW, 1000 1.1621186481522746e-07
+    criterion = torch.nn.MSELoss()
     lr=5e-4
     optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
 
@@ -35,7 +40,8 @@ def plot_attractor():
                                                                              X,
                                                                              Y,
                                                                              X_test,
-                                                                             Y_test,
+                                                                             Y_test, 
+                                                                             true_traj,
                                                                              optimizer,
                                                                              criterion,
                                                                              epochs=num_epoch)

@@ -34,9 +34,10 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     res = simulate(ti, tf, init_state, num_state)
 
     ##### create graph #####
-    g = dgl.graph([(0, 1), (1, 0)])
+    g = dgl.graph([(0, 0)])
     #g.ndata["feat"] = res[n_trans-1]
     #g.ndata["label"] = res[n_trans-1]
+    print("created graph!")
 
     ##### create training dataset #####
     X = np.zeros((n_train, n_nodes))
@@ -103,8 +104,8 @@ def create_NODE(device, g):
     # define NODE model
     torch.manual_seed(42)
 
-    gnn = nn.Sequential(GCNLayer(g=g, in_feats=1, out_feats=128, activation=nn.Tanh(), dropout=0.),
-    GCNLayer(g=g, in_feats=128, out_feats=1, activation=None, dropout=0.)).to(device)
+    gnn = nn.Sequential(GCNLayer(g=g, in_feats=2, out_feats=128, activation=nn.Tanh(), dropout=0.),
+    GCNLayer(g=g, in_feats=128, out_feats=2, activation=None, dropout=0.)).to(device)
     neural_func = GDEFunc(gnn).to(device)
     node = ODEBlock(T=0.025, odefunc=neural_func, method='euler', atol=1e-6, rtol=1e-6, adjoint=True).to(device)
 
@@ -130,14 +131,14 @@ def train(model, device, batch_size, train_iter, test_iter, optimizer, criterion
         model.train()
         model.double()
 
-        y_pred = torch.zeros(len(train_iter), batch_size, 2)
-        y_true = torch.zeros(len(train_iter), batch_size, 2)
+        y_pred = torch.zeros(len(train_iter), 1, 2)
+        y_true = torch.zeros(len(train_iter), 1, 2)
         k = 0
         x_train = torch.zeros(len(train_iter), 1, 2)
 
         for xk,yk in train_iter:
-            xk = xk.T.to(device)
-            yk = yk.T.to(device)
+            xk = xk.to(device)
+            yk = yk.to(device)
 
             output = model(xk) # output dim = num_time_step x num_nodes
 
@@ -147,18 +148,18 @@ def train(model, device, batch_size, train_iter, test_iter, optimizer, criterion
             x_train[k] = xk.T
             k += 1
 
-        loss = criterion(y_pred, y_true)
-        train_loss = loss.item()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            loss = criterion(output, yk)
+            train_loss = loss.item()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        num_grad_steps += 1
+            num_grad_steps += 1 
 
-        pred_train.append(y_pred.detach().numpy())
-        true_train.append(y_true.detach().numpy())
+        pred_train.append(y_pred.detach().cpu().numpy())
+        true_train.append(y_true.detach().cpu().numpy())
         loss_hist.append(train_loss)
-        print(num_grad_steps, train_loss)
+        print(i, train_loss)
 
         ##### test #####
         pred_test, true_test, test_loss_hist = evaluate(model, test_iter, device, criterion, i, batch_size, optim_name)
@@ -170,7 +171,8 @@ def evaluate(model, test_iter, device, criterion, iter, batch_size, optimizer_na
   pred_test = torch.zeros(len(test_iter), batch_size, 2)
   true_test = torch.zeros(len(test_iter), batch_size, 2)
   test_loss_hist = []
-  test_t = torch.linspace(0, 50, len(test_iter)*batch_size)
+  test_t = torch.linspace(0, 25, len(test_iter)*batch_size)
+  x_plot = torch.zeros(len(test_iter), batch_size, 2)
 
   with torch.no_grad():
     model.eval()
@@ -186,6 +188,7 @@ def evaluate(model, test_iter, device, criterion, iter, batch_size, optimizer_na
       # save predicted node feature for analysis
       pred_test[k] = y_pred_test.T.detach()
       true_test[k] = yk.T.detach()
+      x_plot[k] = x
       k += 1
 
     test_loss = criterion(pred_test, true_test).item()
@@ -194,13 +197,14 @@ def evaluate(model, test_iter, device, criterion, iter, batch_size, optimizer_na
     if iter % 10 == 0:
         plt.figure(figsize=(10, 7.5))
         plt.title(f"Iteration {iter}")
-        plt.plot(test_t, pred_test[:, 0, 0], c='C0', ls='--', label='Prediction')
-        plt.plot(test_t, true_test[:, 0, 0], c='C1', label='Ground Truth', alpha=0.7)
-        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.plot(test_t, pred_test[:, 0, 0], c='C0', ls='--', linewidth=2)
+        plt.plot(test_t, true_test[:, 0, 0], c='C1', alpha=0.7, linewidth=2)
+        plt.legend(['Prediction', 'Ground Truth'])
         plt.xlabel('t')
         plt.ylabel('y')
         plt.legend(loc='best')
         plt.savefig('gde_expt_sin_second_order/'+ optimizer_name + '/trajectory/' +str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.show()
         plt.close("all")
     
   return pred_test, true_test, test_loss_hist

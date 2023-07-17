@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torchdiffeq
 import numpy as np
-import dgl
 import matplotlib.pyplot as plt
 
 from examples.Brusselator import brusselator
@@ -71,7 +70,7 @@ def create_NODE(device, n_nodes):
 
 
 
-def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
+def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs):
 
     # return loss, test_loss, model_final
     num_grad_steps = 0
@@ -104,8 +103,11 @@ def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs):
         loss_hist.append(train_loss)
         print(num_grad_steps, train_loss)
 
-        ##### test #####
+        ##### test one_step #####
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
+        ##### test multi_step #####
+        if (i+1) % 200 == 0:
+            test_multistep(model, true_t, device, i, optim_name)
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
@@ -130,19 +132,54 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
     test_loss = criterion(pred_test, Y).item()
     test_loss_hist.append(test_loss)
 
-    if iter % 500 == 0:
+    if (iter+1) % 500 == 0:
         plt.figure(figsize=(10, 7.5))
-        plt.title(f"Iteration {iter}")
-        plt.plot(test_t, pred_test[:, 0], c='C0', ls='--', label='Prediction')
-        plt.plot(test_t, Y[:, 0], c='gray', label='Ground Truth', alpha=0.7)
+        plt.title(f"Iteration {iter+1}")
+        plt.plot(test_t, pred_test[:, 0], c='C0', ls='--', label='Prediction', linewidth=3)
+        plt.plot(test_t, Y[:, 0], c='gray', marker=',', label='Ground Truth', alpha=0.6)
         #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
         plt.xlabel('t')
         plt.ylabel('y')
         plt.legend(loc='best')
-        plt.savefig('expt_brusselator/'+ optimizer_name + '/trajectory/' +str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.savefig('expt_brusselator/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
     
   return pred_test, test_loss_hist
+
+
+
+def test_multistep(model, true_traj, device, iter, optimizer_name):
+
+  test_t = torch.linspace(0, 1600, true_traj.shape[0])
+  pred_traj = torch.zeros(true_traj.shape[0], 2).to(device)
+
+  with torch.no_grad():
+    model.eval()
+    model.double()
+
+    # initialize X
+    X = true_traj[0].to(device)
+
+    # calculating outputs 
+    for i in range(test_t.shape[0]):
+        cur_pred = model(X.double())
+        pred_traj[i] = cur_pred
+        X = pred_traj[i]
+
+
+    if (iter+1) % 200 == 0:
+        plt.figure(figsize=(10, 7.5))
+        plt.title(f"Iteration {iter+1}")
+        plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction', linewidth=3)
+        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='gray', marker=',', label='Ground Truth', alpha=0.6)
+        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.xlabel('t')
+        plt.ylabel('y')
+        plt.legend(loc='best')
+        plt.savefig('expt_brusselator/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.close("all")
+    
+  return
 
 
 
