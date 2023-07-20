@@ -33,7 +33,7 @@ def plot_attractor():
     num_epoch = 4000
     criterion = torch.nn.MSELoss()
     lr=5e-4
-    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
+    optimizer = torch.optim.RMSprop(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
@@ -49,7 +49,7 @@ def plot_attractor():
     print("test loss: ", test_loss_hist[-1])
 
     ##### Save Training Loss #####
-    optim_name = 'AdamW'
+    optim_name = 'RMSprop'
     loss_csv = np.asarray(loss_hist)
     np.savetxt('expt_brusselator/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
 

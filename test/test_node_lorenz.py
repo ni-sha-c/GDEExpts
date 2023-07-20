@@ -16,6 +16,11 @@ def plot_attractor():
 
     ##### create data #####
     X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 80001, n_train=15000, n_test=5000, n_nodes=3, n_trans=60000)
+
+    ##### create data for extrapolation #####
+    true_traj = sol.simulate(40, 80, torch.Tensor([ -8., 7., 27.]), 80001)
+    true_traj = true_traj[6000:]
+    print("testing initial point: ", true_traj[0])
     print("created data!")
 
     ##### create model #####

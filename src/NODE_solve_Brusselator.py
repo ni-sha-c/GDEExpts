@@ -79,7 +79,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
     true_train = []
     loss_hist = []
     train_loss = 0
-    optim_name = 'AdamW'
+    optim_name = 'RMSprop'
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -150,7 +150,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 def test_multistep(model, true_traj, device, iter, optimizer_name):
 
-  test_t = torch.linspace(0, 1600, true_traj.shape[0])
+  test_t = torch.linspace(0, 800, true_traj.shape[0])
   pred_traj = torch.zeros(true_traj.shape[0], 2).to(device)
 
   with torch.no_grad():
