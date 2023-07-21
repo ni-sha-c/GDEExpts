@@ -31,7 +31,6 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     ##### call simulate #####
     res = simulate(ti, tf, init_state, num_state)
     print("Finished Simulating")
-    print(res[:3])
 
     ##### create training dataset #####
     X = np.zeros((n_train, n_nodes))
@@ -79,7 +78,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
     true_train = []
     loss_hist = []
     train_loss = 0
-    optim_name = 'Gradient Descent'
+    optim_name = 'AdamW'
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -133,7 +132,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
     test_loss_hist.append(test_loss)
     # pred_test n_test x 3
 
-    if iter % 500 == 0:
+    if iter % 2000 == 0:
         plt.figure(figsize=(20, 15))
         ax = plt.axes(projection='3d')
         ax.grid()
@@ -151,7 +150,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 def test_multistep(model, true_traj, device, iter, optimizer_name):
 
-  test_t = torch.linspace(0, 800, true_traj.shape[0])
+  test_t = torch.linspace(0, 1600, true_traj.shape[0])
   pred_traj = torch.zeros(true_traj.shape[0], 3).to(device)
 
   with torch.no_grad():
@@ -176,9 +175,9 @@ def test_multistep(model, true_traj, device, iter, optimizer_name):
         plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
 
 
-        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='gray', marker=',', label='Ground Truth of x', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='gray', marker=',', label='Ground Truth of y', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='gray', marker=',', label='Ground Truth of z', alpha=0.6)
+        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
+        plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
+        plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
 
         #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
         plt.xlabel('t')

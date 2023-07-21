@@ -15,11 +15,11 @@ def plot_attractor():
     print("device: ", device)
 
     ##### create data #####
-    X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 80001, n_train=15000, n_test=5000, n_nodes=3, n_trans=60000)
+    X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 80001, n_train=18000, n_test=2000, n_nodes=3, n_trans=60000)
 
     ##### create data for extrapolation #####
-    true_traj = sol.simulate(40, 80, torch.Tensor([ -8., 7., 27.]), 80001)
-    true_traj = true_traj[6000:]
+    true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 160001)
+    true_traj = true_traj[120000:]
     print("testing initial point: ", true_traj[0])
     print("created data!")
 
@@ -28,17 +28,18 @@ def plot_attractor():
     print("created model!")
 
     ##### train #####
-    num_epoch = 10000
+    num_epoch = 20000
     criterion = torch.nn.MSELoss()
     lr=5e-4
-    optimizer = torch.optim.SGD(m.parameters(), lr=lr, weight_decay =5e-4, momentum=0) # 1e-4
+    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-5) # 5e-4
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
                                                                              X,
                                                                              Y,
                                                                              X_test,
-                                                                             Y_test,
+                                                                             Y_test, 
+                                                                             true_traj,
                                                                              optimizer,
                                                                              criterion,
                                                                              epochs=num_epoch)
@@ -46,7 +47,7 @@ def plot_attractor():
     print("test loss: ", test_loss_hist[-1])
 
     ##### Save Training Loss #####
-    optim_name = 'Gradient Descent'
+    optim_name = 'AdamW'
     loss_csv = np.asarray(loss_hist)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
 

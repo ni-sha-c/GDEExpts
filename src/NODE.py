@@ -82,6 +82,10 @@ class ODEFunc_Lorenz (nn.Module):
       nn.Tanh(),
       nn.Linear(512, 512),
       nn.Tanh(),
+      nn.Linear(512, 1024),
+      nn.Tanh(),
+      nn.Linear(1024, 512),
+      nn.Tanh(),
       nn.Linear(512, 256),
       nn.Tanh(),
       nn.Linear(256, y_dim)
