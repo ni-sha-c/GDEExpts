@@ -106,6 +106,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
         if (i+1) % 2000 == 0:
             test_multistep(model, true_t, device, i, optim_name)
+        
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
@@ -184,6 +185,28 @@ def test_multistep(model, true_traj, device, iter, optimizer_name):
         plt.ylabel('y')
         plt.legend(loc='best')
         plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-        plt.close("all")
-    
+        plt.close("all")   
+
   return
+
+
+
+
+def error_plot(num_epoch, pred_train, Y, optimizer_name):
+
+    plt.figure(figsize=(10, 7.5))
+    plt.title(f"Training Prediction MAE Error After {num_epoch} Epochs")
+
+    pred = torch.Tensor(pred_train)
+    last_iter_pred = pred[-1, :, :]
+    error_criterion = torch.nn.L1Loss(reduction='none')
+    error = error_criterion(last_iter_pred, Y)
+
+    plt.plot(error, linewidth=1)
+    plt.xlabel('t')
+    plt.ylabel('Error')
+    plt.legend(['element x', 'element y', 'element z'])
+    plt.savefig('expt_lorenz/'+ optimizer_name + '/' +'training_error_plot.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.close("all")
+
+    return

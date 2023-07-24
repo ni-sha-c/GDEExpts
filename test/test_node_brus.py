@@ -20,8 +20,8 @@ def plot_attractor():
     X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
     
     ##### create data for extrapolation #####
-    true_traj = sol.simulate(0, 800, torch.Tensor([2,2]), 40001)
-    true_traj = true_traj[37000:]
+    true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
+    true_traj = true_traj[73000:]
     print("testing initial point: ", true_traj[0])
     print("created data!")
 
@@ -79,16 +79,16 @@ def plot_attractor():
     x_loss = list(range(0,num_epoch))
 
     plt.subplot(2,2,1)
-    plt.plot(x, pred_train_last[:num_timestep, substance_type], '--', linewidth=2)
+    plt.plot(x, pred_train_last[:num_timestep, substance_type], marker='o', linewidth=2)
     plt.plot(x, true_train_last[:num_timestep, substance_type], alpha=0.7)
-    plt.plot(x, X[:num_timestep, substance_type], c='gray', alpha=0.5)
+    plt.plot(x, X[:num_timestep, substance_type], c='gray', alpha=0.5, '--')
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Chemical substance type A prediction at {} epoch, Train'.format(num_epoch))
 
     plt.subplot(2,2,2)
-    plt.plot(pred_test[:num_timestep, substance_type], '--', linewidth=2)
+    plt.plot(pred_test[:num_timestep, substance_type], marker='o', linewidth=2)
     plt.plot(Y_test[:num_timestep, substance_type])
-    plt.plot(X_test[:num_timestep, substance_type])
+    plt.plot(X_test[:num_timestep, substance_type], '--')
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Chemical substance type A prediction at {} epoch, Test'.format(num_epoch))
 

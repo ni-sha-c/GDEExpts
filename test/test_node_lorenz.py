@@ -19,7 +19,7 @@ def plot_attractor():
 
     ##### create data for extrapolation #####
     true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 160001)
-    true_traj = true_traj[120000:]
+    true_traj = true_traj[60000:]
     print("testing initial point: ", true_traj[0])
     print("created data!")
 
@@ -31,7 +31,7 @@ def plot_attractor():
     num_epoch = 20000
     criterion = torch.nn.MSELoss()
     lr=5e-4
-    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-5) # 5e-4
+    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4)
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
@@ -51,6 +51,7 @@ def plot_attractor():
     loss_csv = np.asarray(loss_hist)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
 
+
     ##### Plot Phase Space #####
     plt.figure(figsize=(20,15))
     ax = plt.axes(projection='3d')
@@ -62,7 +63,11 @@ def plot_attractor():
     ax.set_title('Phase Space')
     plt.savefig('expt_lorenz/' + optim_name + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.show()
-    plt.close()
+    plt.close("all")
+
+
+    ##### Plot Error ||pred - true|| #####
+    sol.error_plot(num_epoch, pred_train, Y, optim_name)
 
     ##### Plot Time Space #####
     pred_train = np.array(pred_train)
@@ -79,16 +84,16 @@ def plot_attractor():
     x_loss = list(range(0,num_epoch))
 
     plt.subplot(2,2,1)
-    plt.plot(x, pred_train_last[:num_timestep, substance_type], '--', linewidth=2)
+    plt.plot(x, pred_train_last[:num_timestep, substance_type], marker='o', linewidth=1)
     plt.plot(x, true_train_last[:num_timestep, substance_type], alpha=0.7)
-    plt.plot(x, X[:num_timestep, substance_type], c='gray', alpha=0.7)
+    plt.plot(x, X[:num_timestep, substance_type], '--', c='gray', alpha=0.9)
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Substance type A prediction at {} epoch, Train'.format(num_epoch))
 
     plt.subplot(2,2,2)
-    plt.plot(pred_test[:num_timestep, substance_type], '--', linewidth=2)
+    plt.plot(pred_test[:num_timestep, substance_type], marker='o', linewidth=1)
     plt.plot(Y_test[:num_timestep, substance_type])
-    plt.plot(X_test[:num_timestep, substance_type])
+    plt.plot(X_test[:num_timestep, substance_type], '--')
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Substance type A prediction at {} epoch, Test'.format(num_epoch))
 
@@ -107,7 +112,3 @@ def plot_attractor():
 
 ##### run experiment #####    
 plot_attractor() 
-
-
-
-
