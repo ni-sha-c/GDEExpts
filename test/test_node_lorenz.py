@@ -7,30 +7,50 @@ import sys
 sys.path.append('..')
 
 from src import NODE_solve_Lorenz as sol 
+from src import NODE_util as util
 
-def plot_attractor():
+def plot_attractor(optim_name, num_epoch, lr, time_step):
     ''' func: plotting the attractor '''
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
-    ##### create data #####
-    X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 80001, n_train=18000, n_test=2000, n_nodes=3, n_trans=60000)
+    ##### create data for train, test, and extrapolation #####
+    if time_step == 5e-4:
+        transition_phase = 60000
+        X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 80001, n_train=18000, n_test=2000, n_nodes=3, n_trans=transition_phase) # 22.5%
 
-    ##### create data for extrapolation #####
-    true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 160001)
-    true_traj = true_traj[60000:]
+        true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 160001)
+        true_traj = true_traj[transition_phase:]
+
+    elif time_step == 5e-3:
+        transition_phase = 6000
+        X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 8001, n_train=1800, n_test=200, n_nodes=3, n_trans=transition_phase)
+
+        true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 16001)
+        true_traj = true_traj[transition_phase:]
+
+    elif time_step == 1e-2:
+        transition_phase = 3000
+        X, Y, X_test, Y_test = sol.create_data(0, 40, torch.Tensor([ -8., 7., 27.]), 4001, n_train=900, n_test=100, n_nodes=3, n_trans=transition_phase)
+
+        true_traj = sol.simulate(0, 80, torch.Tensor([ -8., 7., 27.]), 8001)
+        true_traj = true_traj[transition_phase:]
+
+
+
     print("testing initial point: ", true_traj[0])
     print("created data!")
 
+    ##### plot training data trajectory #####
+    util.plot_traj_lorenz(X, optim_name, time_step)
+
     ##### create model #####
-    m = sol.create_NODE(device, n_nodes=3)
+    m = sol.create_NODE(device, n_nodes=3, T=time_step)
     print("created model!")
 
     ##### train #####
-    num_epoch = 20000
     criterion = torch.nn.MSELoss()
-    lr=5e-4
     optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4)
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
@@ -42,73 +62,24 @@ def plot_attractor():
                                                                              true_traj,
                                                                              optimizer,
                                                                              criterion,
-                                                                             epochs=num_epoch)
+                                                                             epochs=num_epoch,
+                                                                             lr=lr,
+                                                                             time_step=time_step)
     print("train loss: ", loss_hist[-1])
-    print("test loss: ", test_loss_hist[-1])
+    #print("test loss: ", test_loss_hist[-1])
 
     ##### Save Training Loss #####
-    optim_name = 'AdamW'
     loss_csv = np.asarray(loss_hist)
-    np.savetxt('expt_lorenz/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
-
+    np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"training_loss.csv", loss_csv, delimiter=",")
 
     ##### Plot Phase Space #####
-    plt.figure(figsize=(20,15))
-    ax = plt.axes(projection='3d')
-    ax.grid()
-    ax.plot3D(pred_test[:, 0], pred_test[:, 1], pred_test[:, 2], 'gray', linewidth=5)
-        
-    z = Y_test[:, 2]
-    ax.scatter3D(Y_test[:, 0], Y_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
-    ax.set_title('Phase Space')
-    plt.savefig('expt_lorenz/' + optim_name + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    plt.show()
-    plt.close("all")
-
-
-    ##### Plot Error ||pred - true|| #####
-    sol.error_plot(num_epoch, pred_train, Y, optim_name)
+    util.plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time_step)
 
     ##### Plot Time Space #####
-    pred_train = np.array(pred_train)
-    true_train = np.array(true_train)
-    pred_test = np.array(pred_test)
-    pred_train_last = pred_train[-1]
-    true_train_last = true_train[-1]
-
-    plt.figure(figsize=(40,10))
-
-    num_timestep = 2000
-    substance_type = 0
-    x = list(range(0,num_timestep))
-    x_loss = list(range(0,num_epoch))
-
-    plt.subplot(2,2,1)
-    plt.plot(x, pred_train_last[:num_timestep, substance_type], marker='o', linewidth=1)
-    plt.plot(x, true_train_last[:num_timestep, substance_type], alpha=0.7)
-    plt.plot(x, X[:num_timestep, substance_type], '--', c='gray', alpha=0.9)
-    plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
-    plt.title('Substance type A prediction at {} epoch, Train'.format(num_epoch))
-
-    plt.subplot(2,2,2)
-    plt.plot(pred_test[:num_timestep, substance_type], marker='o', linewidth=1)
-    plt.plot(Y_test[:num_timestep, substance_type])
-    plt.plot(X_test[:num_timestep, substance_type], '--')
-    plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
-    plt.title('Substance type A prediction at {} epoch, Test'.format(num_epoch))
-
-    ##### Plot Training Loss #####
-    plt.subplot(2,2,3)
-    plt.plot(x_loss, loss_hist)
-    plt.title('Training Loss')
-    plt.xticks()
-    plt.yticks()
-    plt.savefig('expt_lorenz/' + optim_name + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    plt.show()
-    plt.close("all")
+    util.plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step)
 
     return 
 
 
 ##### run experiment #####    
-plot_attractor() 
+plot_attractor('AdamW', 12000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

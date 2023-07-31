@@ -1,6 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def plot_loss():
+    training1 = np.loadtxt("./"+ "expt_lorenz" +"/AdamW/0.01/training_loss.csv", delimiter=",", dtype=float)
+    training2 = np.loadtxt("./"+ "expt_lorenz" +"/AdamW/0.005/training_loss.csv", delimiter=",", dtype=float)
+    training3 = np.loadtxt("./"+ "expt_lorenz" +"/AdamW/0.0005/[0,40] | 18000/training_loss.csv", delimiter=",", dtype=float)
+
+    plt.figure(figsize=(40,10))
+    #plt.plot(training1)
+    plt.plot(training2)
+    plt.plot(training3)
+
+    #plt.legend(['1e-2', '5e-3', '5e-4'])
+    plt.legend(['5e-3', '5e-4'])
+    plt.title('Training loss vs Epoch with Different Timestep Size')
+    plt.xticks()
+    plt.yticks()
+    plt.savefig('./loss_comparison_node/'+ 'training_loss_comparison_two', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.show()
+    plt.close()
+
 def test_optim_plot(system):
 
     if system == "brusselator":
@@ -39,4 +58,5 @@ def test_optim_plot(system):
     plt.close()
 
 ##### run test_optim_plot() #####
-test_optim_plot("lorenz")
+#test_optim_plot("lorenz")
+plot_loss()

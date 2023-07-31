@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torchdiffeq
 import numpy as np
-import dgl
 import matplotlib.pyplot as plt
 
 from examples.Lorenz import lorenz
@@ -57,19 +56,19 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     return X, Y, X_test, Y_test
 
 
-def create_NODE(device, n_nodes):
+def create_NODE(device, n_nodes, T):
     # define NODE model
     torch.manual_seed(42)
 
     neural_func = ODEFunc_Lorenz(y_dim=n_nodes, n_hidden=3).to(device)
-    node = ODEBlock(T=0.0005, odefunc=neural_func, method='euler', atol=1e-6, rtol=1e-6, adjoint=True).to(device)
+    node = ODEBlock(T=T, odefunc=neural_func, method='euler', atol=1e-6, rtol=1e-6, adjoint=True).to(device)
 
     m = nn.Sequential(
         node).to(device)
     return m
 
 
-def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs):
+def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs, lr, time_step):
 
     # return loss, test_loss, model_final
     num_grad_steps = 0
@@ -104,8 +103,9 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
 
         ##### test #####
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
+
         if (i+1) % 2000 == 0:
-            test_multistep(model, true_t, device, i, optim_name)
+            test_multistep(model, epochs, true_t, device, i, optim_name, lr, time_step)
         
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
@@ -149,9 +149,9 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 
 
-def test_multistep(model, true_traj, device, iter, optimizer_name):
+def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step):
 
-  test_t = torch.linspace(0, 1600, true_traj.shape[0])
+  test_t = torch.linspace(0, 1, true_traj.shape[0])
   pred_traj = torch.zeros(true_traj.shape[0], 3).to(device)
 
   with torch.no_grad():
@@ -168,45 +168,58 @@ def test_multistep(model, true_traj, device, iter, optimizer_name):
         X = pred_traj[i]
 
     # plot the x, y, z
-    if (iter+1) % 2000 == 0:
-        plt.figure(figsize=(10, 7.5))
-        plt.title(f"Iteration {iter+1}")
-        plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
-        plt.plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
-        plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
+    # if (iter+1) % 2000 == 0:
+    #     plt.figure(figsize=(10, 7.5))
+    #     plt.title(f"Iteration {iter+1}")
+    #     plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
+    #     plt.plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
+    #     plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
 
 
-        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+    #     plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
+    #     plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
+    #     plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
 
-        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
-        plt.xlabel('t')
-        plt.ylabel('y')
-        plt.legend(loc='best')
-        plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-        plt.close("all")   
+    #     #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+    #     plt.xlabel('t')
+    #     plt.ylabel('y')
+    #     plt.legend(loc='best')
+    #     plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    #     plt.close("all")   
+
+    # Plot Error ||pred - true||
+    if iter+1 == epochs:
+        error_plot(device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step)
 
   return
 
 
 
 
-def error_plot(num_epoch, pred_train, Y, optimizer_name):
+def error_plot(device, num_epoch, pred_train, Y, optimizer_name, lr, time_step):
 
     plt.figure(figsize=(10, 7.5))
-    plt.title(f"Training Prediction MAE Error After {num_epoch} Epochs")
+    plt.title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
+    time_len = 80 * time_step
+    print("time_len: ", time_len)
 
-    pred = torch.Tensor(pred_train)
-    last_iter_pred = pred[-1, :, :]
-    error_criterion = torch.nn.L1Loss(reduction='none')
-    error = error_criterion(last_iter_pred, Y)
+    test_x = torch.linspace(0, time_len, Y.shape[0])
+    pred = pred_train.detach().cpu()
+    Y = Y.cpu()
 
-    plt.plot(error, linewidth=1)
-    plt.xlabel('t')
+    # calculate error
+    error_x = np.abs(pred[:, 0] - Y[:, 0])
+
+    # Save error in csv
+    err_csv = error_x.numpy()
+    np.savetxt('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+ "error_hist_" + str(time_step) + ".csv", err_csv, delimiter=",")
+
+    # Save error plot in png file
+    plt.semilogy(test_x, error_x, linewidth=1)
+    plt.xlabel('Time')
     plt.ylabel('Error')
     plt.legend(['element x', 'element y', 'element z'])
-    plt.savefig('expt_lorenz/'+ optimizer_name + '/' +'training_error_plot.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'training_error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.close("all")
 
     return
