@@ -7,7 +7,7 @@ def lorenz(t, u):
 
     sigma = torch.Tensor([10.0])
     rho = torch.Tensor([28.0])
-    beta = torch.Tensor([2.66])
+    beta = torch.Tensor([8/3])
 
     return torch.Tensor([
         sigma * (u[1] - u[0]),

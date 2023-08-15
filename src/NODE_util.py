@@ -4,6 +4,7 @@ import numpy as np
 def plot_traj_lorenz(X, optim_name, time):
     '''plot trajectory of lorenz training data'''
 
+    plt.figure(figsize=(40,10))
     plt.plot(X[:, 0], color="C1")
     plt.plot(X[:, 1], color="C2")
     plt.plot(X[:, 2], color="C3")

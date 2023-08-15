@@ -8,7 +8,7 @@ sys.path.append('..')
 
 from src import NODE_solve_Brusselator as sol 
 
-def plot_attractor():
+def plot_attractor(optim_name, num_epoch, lr, time_step):
     ''' func: plotting the attractor '''
     # train loss:  5.7104885118373735e-08
     # test loss:  5.995462423718316e-08
@@ -16,12 +16,20 @@ def plot_attractor():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
-    ##### create data #####
-    X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
+    ##### create data for train, test, and extrapolation #####
+    if time_step == 2e-2:
+        X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
     
-    ##### create data for extrapolation #####
-    true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
-    true_traj = true_traj[73000:]
+        true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
+        true_traj = true_traj[73000:]
+
+    elif time_step == 1e-2: # should number of train be the same?
+        X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 80001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
+    
+        true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
+        true_traj = true_traj[73000:]
+
+
     print("testing initial point: ", true_traj[0])
     print("created data!")
 
@@ -107,7 +115,6 @@ def plot_attractor():
 
 ##### run experiment #####    
 plot_attractor() 
-
 
 
 

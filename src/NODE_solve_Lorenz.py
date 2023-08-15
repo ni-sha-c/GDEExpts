@@ -68,7 +68,7 @@ def create_NODE(device, n_nodes, T):
     return m
 
 
-def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs, lr, time_step):
+def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs, lr, time_step, integration_time):
 
     # return loss, test_loss, model_final
     num_grad_steps = 0
@@ -104,11 +104,13 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
         ##### test #####
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
 
-        if (i+1) % 2000 == 0:
-            test_multistep(model, epochs, true_t, device, i, optim_name, lr, time_step)
+        #if (i+1) % 2000 == 0:
+        if (i+1) == epochs:
+            test_multistep(model, epochs, true_t, device, i, optim_name, lr, time_step, integration_time)
         
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+
 
 
 def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
@@ -120,7 +122,6 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
     X = X_test.to(device)
     Y = Y_test.to(device)
-    test_t = torch.linspace(0, 50, X.shape[0])
 
     # calculating outputs again with zeroed dropout
     y_pred_test = model(X)
@@ -133,7 +134,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
     test_loss_hist.append(test_loss)
     # pred_test n_test x 3
 
-    if iter % 2000 == 0:
+    if (iter+1) % 2000 == 0:
         plt.figure(figsize=(20, 15))
         ax = plt.axes(projection='3d')
         ax.grid()
@@ -142,16 +143,16 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
         z = pred_test[:, 2]
         ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
         ax.set_title(f"Iteration {iter}")
-        plt.savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
     
   return pred_test, test_loss_hist
 
 
 
-def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step):
+def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time):
 
-  test_t = torch.linspace(0, 1, true_traj.shape[0])
+  test_t = torch.linspace(0, 1, true_traj.shape[0]) # num_of_extrapolation_dataset
   pred_traj = torch.zeros(true_traj.shape[0], 3).to(device)
 
   with torch.no_grad():
@@ -163,48 +164,51 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
 
     # calculating outputs 
     for i in range(test_t.shape[0]):
+        pred_traj[i] = X
         cur_pred = model(X.double())
-        pred_traj[i] = cur_pred
-        X = pred_traj[i]
-
-    # plot the x, y, z
-    # if (iter+1) % 2000 == 0:
-    #     plt.figure(figsize=(10, 7.5))
-    #     plt.title(f"Iteration {iter+1}")
-    #     plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
-    #     plt.plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
-    #     plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
+        X = cur_pred
 
 
-    #     plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-    #     plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-    #     plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+    #plot the x, y, z
+    if (iter+1) % 2000 == 0:
+    # if (iter+1) == epochs:
+        plt.figure(figsize=(40, 15))
+        plt.title(f"Iteration {iter+1}")
+        plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
+        plt.plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
+        plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
 
-    #     #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
-    #     plt.xlabel('t')
-    #     plt.ylabel('y')
-    #     plt.legend(loc='best')
-    #     plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    #     plt.close("all")   
+
+        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
+        plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
+        plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+
+        #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+        plt.xlabel('t')
+        plt.ylabel('y')
+        plt.legend(loc='best')
+        plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        plt.close("all")   
 
     # Plot Error ||pred - true||
-    if iter+1 == epochs:
-        error_plot(device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step)
+    if (iter+1) == epochs:
+        error_plot(device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time)
 
   return
 
 
 
 
-def error_plot(device, num_epoch, pred_train, Y, optimizer_name, lr, time_step):
+def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time):
+    '''plot error vs real time'''
 
     plt.figure(figsize=(10, 7.5))
     plt.title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
-    time_len = 80 * time_step
+    time_len = integration_time * time_step
     print("time_len: ", time_len)
 
     test_x = torch.linspace(0, time_len, Y.shape[0])
-    pred = pred_train.detach().cpu()
+    pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
     # calculate error
