@@ -101,9 +101,10 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
         loss_hist.append(train_loss)
         print(num_grad_steps, train_loss)
 
-        ##### test #####
+        ##### test one_step #####
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
 
+        ##### test multi_step #####
         #if (i+1) % 2000 == 0:
         if (i+1) == epochs:
             test_multistep(model, epochs, true_t, device, i, optim_name, lr, time_step, integration_time)
@@ -142,7 +143,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
         
         z = pred_test[:, 2]
         ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
-        ax.set_title(f"Iteration {iter}")
+        ax.set_title(f"Iteration {iter+1}")
         plt.savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
     
@@ -202,7 +203,7 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
 def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time):
     '''plot error vs real time'''
 
-    plt.figure(figsize=(10, 7.5))
+    plt.figure(figsize=(40, 15))
     plt.title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
     time_len = integration_time * time_step
     print("time_len: ", time_len)
@@ -223,7 +224,7 @@ def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, i
     plt.xlabel('Time')
     plt.ylabel('Error')
     plt.legend(['element x', 'element y', 'element z'])
-    plt.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'training_error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.close("all")
 
     return

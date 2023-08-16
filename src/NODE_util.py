@@ -25,10 +25,10 @@ def plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time):
     plt.figure(figsize=(20,15))
     ax = plt.axes(projection='3d')
     ax.grid()
-    ax.plot3D(pred_test[:, 0], pred_test[:, 1], pred_test[:, 2], 'gray', linewidth=5)
+    ax.plot3D(Y_test[:, 0], Y_test[:, 1], Y_test[:, 2], 'gray', linewidth=5)
         
-    z = Y_test[:, 2]
-    ax.scatter3D(Y_test[:, 0], Y_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
+    z = pred_test[:, 2]
+    ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
     ax.set_title('Phase Space')
     plt.savefig('expt_lorenz/' + optim_name + '/' + str(time) + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.show()

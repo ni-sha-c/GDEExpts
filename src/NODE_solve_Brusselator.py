@@ -70,7 +70,7 @@ def create_NODE(device, n_nodes):
 
 
 
-def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs):
+def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs, lr, time_step):
 
     # return loss, test_loss, model_final
     num_grad_steps = 0
@@ -79,7 +79,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
     true_train = []
     loss_hist = []
     train_loss = 0
-    optim_name = 'RMSprop'
+    optim_name = 'AdamW'
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -106,8 +106,9 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
         ##### test one_step #####
         pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
         ##### test multi_step #####
-        if (i+1) % 200 == 0:
-            test_multistep(model, true_t, device, i, optim_name)
+        if (i+1) == epochs:
+        #if (i+1) % 1000 == 0:
+            test_multistep(model, epochs, true_t, device, i, optim_name, lr, time_step)
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
@@ -120,7 +121,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
     X = X_test.to(device)
     Y = Y_test.to(device)
-    test_t = torch.linspace(0, 50, X.shape[0])
+    test_t = torch.linspace(0, 800, X.shape[0])
 
     # calculating outputs again with zeroed dropout
     y_pred_test = model(X)
@@ -148,7 +149,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 
 
-def test_multistep(model, true_traj, device, iter, optimizer_name):
+def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step):
 
   test_t = torch.linspace(0, 800, true_traj.shape[0])
   pred_traj = torch.zeros(true_traj.shape[0], 2).to(device)
@@ -162,13 +163,13 @@ def test_multistep(model, true_traj, device, iter, optimizer_name):
 
     # calculating outputs 
     for i in range(test_t.shape[0]):
+        pred_traj[i] = X
         cur_pred = model(X.double())
-        pred_traj[i] = cur_pred
-        X = pred_traj[i]
+        X = cur_pred
 
 
-    if (iter+1) % 200 == 0:
-        plt.figure(figsize=(10, 7.5))
+    if (iter+1) % 1000 == 0:
+        plt.figure(figsize=(40, 15))
         plt.title(f"Iteration {iter+1}")
         plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction', linewidth=3)
         plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='gray', marker=',', label='Ground Truth', alpha=0.6)
@@ -178,8 +179,43 @@ def test_multistep(model, true_traj, device, iter, optimizer_name):
         plt.legend(loc='best')
         plt.savefig('expt_brusselator/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
+
+    # Plot Error ||pred - true||
+    if (iter+1) == epochs:
+        error_plot(device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step)
     
   return
+
+
+
+def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step):
+    '''plot error vs real time'''
+
+    plt.figure(figsize=(40, 15))
+    plt.title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
+    time_len = 800 * time_step
+    print("time_len: ", time_len)
+
+    test_x = torch.linspace(0, time_len, Y.shape[0])
+    pred = pred_traj.detach().cpu()
+    Y = Y.cpu()
+
+    # calculate error
+    error_x = np.abs(pred[:, 0] - Y[:, 0])
+
+    # Save error in csv
+    err_csv = error_x.numpy()
+    np.savetxt('expt_brusselator/'+ optimizer_name + '/' + str(time_step) + '/'+ "error_hist_" + str(time_step) + ".csv", err_csv, delimiter=",")
+
+    # Save error plot in png file
+    plt.semilogy(test_x, error_x, linewidth=1)
+    plt.xlabel('Time')
+    plt.ylabel('Error')
+    plt.legend(['element x', 'element y'])
+    plt.savefig('expt_brusselator/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    plt.close("all")
+
+    return
 
 
 

@@ -20,14 +20,12 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     if time_step == 2e-2:
         X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 40001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
     
-        true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
-        true_traj = true_traj[73000:]
+        true_traj = sol.simulate(0, 1600, torch.Tensor([1,3]), 80001)
 
     elif time_step == 1e-2: # should number of train be the same?
-        X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 80001, n_train=2000, n_test=1000, n_nodes=2, n_trans=37000)
+        X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 80001, n_train=4000, n_test=2000, n_nodes=2, n_trans=74000)
     
-        true_traj = sol.simulate(0, 1600, torch.Tensor([2,2]), 80001)
-        true_traj = true_traj[73000:]
+        true_traj = sol.simulate(0, 1600, torch.Tensor([1,3]), 160001)
 
 
     print("testing initial point: ", true_traj[0])
@@ -38,10 +36,8 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     print("created model!")
 
     ##### train #####
-    num_epoch = 4000
     criterion = torch.nn.MSELoss()
-    lr=5e-4
-    optimizer = torch.optim.RMSprop(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
+    optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4) # 1e-4
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
@@ -52,12 +48,13 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
                                                                              true_traj,
                                                                              optimizer,
                                                                              criterion,
-                                                                             epochs=num_epoch)
+                                                                             epochs=num_epoch,
+                                                                             lr=lr,
+                                                                             time_step=time_step)
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
 
     ##### Save Training Loss #####
-    optim_name = 'RMSprop'
     loss_csv = np.asarray(loss_hist)
     np.savetxt('expt_brusselator/'+ optim_name + '/' + "training_loss.csv", loss_csv, delimiter=",")
 
@@ -89,7 +86,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     plt.subplot(2,2,1)
     plt.plot(x, pred_train_last[:num_timestep, substance_type], marker='o', linewidth=2)
     plt.plot(x, true_train_last[:num_timestep, substance_type], alpha=0.7)
-    plt.plot(x, X[:num_timestep, substance_type], c='gray', alpha=0.5, '--')
+    plt.plot(x, X[:num_timestep, substance_type], '--', c='gray', alpha=0.5)
     plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
     plt.title('Chemical substance type A prediction at {} epoch, Train'.format(num_epoch))
 
@@ -114,7 +111,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
 
 ##### run experiment #####    
-plot_attractor() 
+plot_attractor("AdamW", 4000, 5e-4, 2e-2) 
 
 
 

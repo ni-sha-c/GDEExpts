@@ -78,18 +78,25 @@ class ODEFunc_Lorenz (nn.Module):
     self.net = nn.Sequential(
       nn.Linear(y_dim, 256),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(256, 512),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(512, 512),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(512, 1024),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(1024, 512),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(512, 512),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(512, 256),
       nn.Tanh(),
+      #nn.ReLU(),
       nn.Linear(256, y_dim)
     )
 
