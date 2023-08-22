@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torchdiffeq
+from .KAF import KAF
 
 class ODEBlock(nn.Module):
-    def __init__(self, T, odefunc:nn.Module, method:str='euler', rtol:float=1e-6, atol:float=1e-6, adjoint:bool=True):
+    def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=True):
         """ Standard ODEBlock class. Can handle all types of ODE functions
             :method:str = {'euler', 'rk4', 'dopri5', 'adams'}
         """
@@ -70,34 +71,121 @@ class ODEFunc_Brusselator (nn.Module):
     return self.net(y)
 
 
+
 class ODEFunc_Lorenz (nn.Module):
   ''' adapted from ... '''
   
   def __init__( self , y_dim=3 , n_hidden=4) :
     super(ODEFunc_Lorenz , self ).__init__()
+
+    self.net = nn.Sequential(
+      # nn.Linear(y_dim, 256),
+      # KAF(256),
+      # nn.Linear(256, 512),
+      # KAF(512),
+      # nn.Linear(512, 512), # added
+      # KAF(512),
+      # nn.Linear(512, 512),
+      # KAF(512),
+      # nn.Linear(512, 512), # added
+      # KAF(512),
+      # nn.Linear(512, 1024),
+      # KAF(1024),
+      # nn.Linear(1024, 1024), # added
+      # KAF(1024),
+      # nn.Linear(1024, 512),
+      # KAF(512),
+      # nn.Linear(512, 512),
+      # KAF(512),
+      # nn.Linear(512, 256),
+      # KAF(256),
+      # nn.Linear(256, y_dim)
+
+      nn.Linear(y_dim, 256),
+      nn.ReLU(),
+      nn.Linear(256, 512),
+      nn.ReLU(),
+      nn.Linear(512, 512), 
+      nn.ReLU(),
+      nn.Linear(512, 512),
+      nn.ReLU(),
+      nn.Linear(512, 512), 
+      nn.ReLU(),
+      nn.Linear(512, 1024),
+      nn.ReLU(),
+      nn.Linear(1024, 1024), 
+      nn.ReLU(),
+      nn.Linear(1024, 512),
+      nn.ReLU(),
+      nn.Linear(512, 512),
+      nn.ReLU(),
+      nn.Linear(512, 256),
+      nn.ReLU(),
+      nn.Linear(256, y_dim)
+
+      # nn.Linear(y_dim, 256),
+      # nn.ReLU(),
+      # nn.Linear(256, 256),
+      # nn.ReLU(),
+      # nn.Linear(256, 256),
+      # nn.ReLU(),
+      # nn.Linear(256, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 1024),
+      # nn.ReLU(),
+      # nn.Linear(1024, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 256),
+      # nn.ReLU(),
+      # nn.Linear(256, y_dim)
+    )
+
+  def forward(self , t, y): 
+    return self.net(y)
+
+
+class ODEFunc_Lorenz_periodic (nn.Module):
+  ''' adapted from ... '''
+  
+  def __init__( self , y_dim=3 , n_hidden=4) :
+    super(ODEFunc_Lorenz_periodic , self ).__init__()
     self.net = nn.Sequential(
       nn.Linear(y_dim, 256),
-      nn.Tanh(),
-      #nn.ReLU(),
-      nn.Linear(256, 512),
-      nn.Tanh(),
-      #nn.ReLU(),
-      nn.Linear(512, 512),
-      nn.Tanh(),
-      #nn.ReLU(),
-      nn.Linear(512, 1024),
-      nn.Tanh(),
-      #nn.ReLU(),
+      nn.ReLU(),
+      nn.Linear(256, 1024),
+      nn.ReLU(),
       nn.Linear(1024, 512),
-      nn.Tanh(),
-      #nn.ReLU(),
+      nn.ReLU(),
       nn.Linear(512, 512),
-      nn.Tanh(),
-      #nn.ReLU(),
+      nn.ReLU(),
+      nn.Linear(512, 512),
+      nn.ReLU(),
       nn.Linear(512, 256),
-      nn.Tanh(),
-      #nn.ReLU(),
+      nn.ReLU(),
       nn.Linear(256, y_dim)
+
+
+      # nn.Linear(y_dim, 256), # 256 ->512
+      # nn.ReLU(),
+      # nn.Linear(256, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 1024),
+      # nn.ReLU(),
+      # nn.Linear(1024, 1024),
+      # nn.ReLU(),
+      # nn.Linear(1024, 512),
+      # nn.ReLU(),
+      # nn.Linear(512, 256), # 256 -> 512
+      # nn.ReLU(),
+      # nn.Linear(256, 256), # 256 -> 512
+      # nn.ReLU(),
+      # nn.Linear(256, y_dim)
     )
 
   def forward(self , t, y): 

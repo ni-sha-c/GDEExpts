@@ -57,6 +57,21 @@ def test_optim_plot(system):
     plt.show()
     plt.close()
 
+def long_time_avg(pred_result, true_result):
+    '''For Calculating Long Time Average'''
+    pred = np.loadtxt(pred_result, delimiter=",", dtype=float)
+    true = np.loadtxt(true_result, delimiter=",", dtype=float)
+
+    print(pred[0:5, 2])
+    print(pred[1000:1005, 2])
+
+    print(np.mean(pred[:,2]))
+    print(np.mean(true[:,2]))
+
+
+    
+
 ##### run test_optim_plot() #####
 #test_optim_plot("lorenz")
-plot_loss()
+#plot_loss()
+long_time_avg('./expt_lorenz/AdamW/0.01/pred_traj.csv', './expt_lorenz/AdamW/0.01/true_traj.csv')

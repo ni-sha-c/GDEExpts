@@ -1,7 +1,7 @@
 import torch
 
 def lorenz(t, u):
-    """ lorenz chaotic differential equation: dy/dt = f(t, y)
+    """ Lorenz chaotic differential equation: dy/dt = f(t, y)
     t: time tk to evaluate system
     y: state vector [x, y, z] """
 

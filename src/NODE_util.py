@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_traj_lorenz(X, optim_name, time):
-    '''plot trajectory of lorenz training data'''
+def plot_traj_lorenz(X, optim_name, time, periodic):
+    '''Plot trajectory of lorenz training data'''
 
     plt.figure(figsize=(40,10))
     plt.plot(X[:, 0], color="C1")
@@ -13,13 +13,16 @@ def plot_traj_lorenz(X, optim_name, time):
     plt.xticks()
     plt.yticks()
     plt.legend(["X", "Y", "Z"])
-    plt.savefig('expt_lorenz/' + optim_name + '/' + str(time) + '/' + 'train_data_traj', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    if periodic == True:
+        plt.savefig('expt_lorenz_periodic/' + optim_name + '/' + str(time) + '/' + 'train_data_traj', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    else:
+        plt.savefig('expt_lorenz/' + optim_name + '/' + str(time) + '/' + 'train_data_traj', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
 
     return
 
 
 
-def plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time):
+def plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time, periodic):
     '''plot phase space of lorenz'''
 
     plt.figure(figsize=(20,15))
@@ -30,14 +33,17 @@ def plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time):
     z = pred_test[:, 2]
     ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
     ax.set_title('Phase Space')
-    plt.savefig('expt_lorenz/' + optim_name + '/' + str(time) + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    if periodic == True:
+        plt.savefig('expt_lorenz_periodic/' + optim_name + '/' + str(time) + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    else:
+        plt.savefig('expt_lorenz/' + optim_name + '/' + str(time) + '/' + 'Phase Space with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.show()
     plt.close("all")
 
     return
 
 
-def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step):
+def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, periodic):
     '''plot time_space for training/test data and training loss for lorenz system'''
 
     pred_train = np.array(pred_train)
@@ -73,7 +79,10 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
     plt.title('Training Loss')
     plt.xticks()
     plt.yticks()
-    plt.savefig('expt_lorenz/' + optim_name + '/' + str(time_step) + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    if periodic == True:
+        plt.savefig('expt_lorenz_periodic/' + optim_name + '/' + str(time_step) + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    else:
+        plt.savefig('expt_lorenz/' + optim_name + '/' + str(time_step) + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.show()
     plt.close("all")
 

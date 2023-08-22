@@ -22,7 +22,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     
         true_traj = sol.simulate(0, 1600, torch.Tensor([1,3]), 80001)
 
-    elif time_step == 1e-2: # should number of train be the same?
+    elif time_step == 1e-2: 
         X, Y, X_test, Y_test = sol.create_data(0, 800, torch.Tensor([1,3]), 80001, n_train=4000, n_test=2000, n_nodes=2, n_trans=74000)
     
         true_traj = sol.simulate(0, 1600, torch.Tensor([1,3]), 160001)

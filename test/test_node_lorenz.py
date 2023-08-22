@@ -20,39 +20,46 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
         #--- [0,40] ---#
         t_n = 2000
-        X, Y, X_test, Y_test = sol.create_data(0, 40, 
-                                torch.Tensor([ -8., 7., 27.]), 80001, 
-                                n_train=32000, n_test=8000, n_nodes=3, n_trans=0)
+        # transition time is decided so that Model Time Unit (delta t * t_n) = 1
+        tran = 2000 
+        X, Y, X_test, Y_test = sol.create_data(0, 120, 
+                                torch.Tensor([ -8., 7., 27.]), 120*2000+1, 
+                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
 
-        # integration time length is decided to make real time length equal to 1
+        # integration time length is decided to make real time length equal to 2.5
         true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ -8., 7., 27.]), t_n*2000+1)
+                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
+        true_traj = true_traj[tran:]
 
         # #--- [0,100] ---#
         # t_n = 2000
-        # X, Y, X_test, Y_test = sol.create_data(0, 100, torch.Tensor([ -8., 7., 27.]), 200001, n_train=64000, n_test=16000, n_nodes=3, n_trans=0)
+        # X, Y, X_test, Y_test = sol.create_data(0, 100, torch.Tensor([ -8., 7., 27.]), 200001, n_train=64000, n_test=14000, n_nodes=3, n_trans=2000)
 
         # true_traj = sol.simulate(0, t_n, torch.Tensor([ -8., 7., 27.]), t_n*2000+1)
 
     elif time_step == 5e-3:
 
         t_n = 200
-        X, Y, X_test, Y_test = sol.create_data(0, 40, 
-                                torch.Tensor([ -8., 7., 27.]), 8001,
-                                n_train=6400, n_test=1600, n_nodes=3, n_trans=0)
+        tran = 200
+        X, Y, X_test, Y_test = sol.create_data(0, 120, 
+                                torch.Tensor([ -8., 7., 27.]), 120*200+1,
+                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
 
         true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ -8., 7., 27.]), t_n*200+1)
+                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*200+1)
+        true_traj = true_traj[tran:]
 
     elif time_step == 1e-2:
 
         t_n = 100
-        X, Y, X_test, Y_test = sol.create_data(0, 40, 
-                                torch.Tensor([ -8., 7., 27.]), 4001, 
-                                n_train=3200, n_test=800, n_nodes=3, n_trans=0)
-
+        tran = 100
+        X, Y, X_test, Y_test = sol.create_data(0, 120, 
+                                torch.Tensor([ -8., 7., 27.]), 12001, 
+                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
+        # test multi-time step with new initial points
         true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ -8., 7., 27.]), t_n*100+1)
+                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*100 + 1)
+        true_traj = true_traj[tran:]
         
 
 
@@ -61,7 +68,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     print("created data!")
 
     ##### plot training data trajectory #####
-    util.plot_traj_lorenz(X, optim_name, time_step)
+    util.plot_traj_lorenz(X, optim_name, time_step, False)
 
     ##### create model #####
     m = sol.create_NODE(device, n_nodes=3, T=time_step)
@@ -87,18 +94,24 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
 
-    ##### Save Training Loss #####
+    ##### Save True Trajectory #####
+    true_traj_csv = np.asarray(true_traj)
+    np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
+
+    ##### Save Training/Test Loss #####
     loss_csv = np.asarray(loss_hist)
+    test_loss_csv = np.asarray(test_loss_hist)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"training_loss.csv", loss_csv, delimiter=",")
+    np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"test_loss.csv", test_loss_csv, delimiter=",")
 
     ##### Plot Phase Space #####
-    util.plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time_step)
+    util.plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time_step, False)
 
     ##### Plot Time Space #####
-    util.plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step)
+    util.plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, False)
 
     return 
 
 
 ##### run experiment #####    
-plot_attractor('AdamW', 12000, 5e-4, 5e-4) # optimizer name, epoch, lr, time_step
+plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

@@ -61,7 +61,7 @@ def create_NODE(device, n_nodes, T):
     torch.manual_seed(42)
 
     neural_func = ODEFunc_Lorenz(y_dim=n_nodes, n_hidden=3).to(device)
-    node = ODEBlock(T=T, odefunc=neural_func, method='euler', atol=1e-6, rtol=1e-6, adjoint=True).to(device)
+    node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-8, rtol=1e-8, adjoint=True).to(device)
 
     m = nn.Sequential(
         node).to(device)
@@ -76,6 +76,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
     pred_train = []
     true_train = []
     loss_hist = []
+    test_loss_hist = []
     train_loss = 0
     optim_name = 'AdamW'
 
@@ -102,7 +103,8 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
         print(num_grad_steps, train_loss)
 
         ##### test one_step #####
-        pred_test, test_loss_hist = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
+        pred_test, test_loss = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
+        test_loss_hist.append(test_loss)
 
         ##### test multi_step #####
         #if (i+1) % 2000 == 0:
@@ -115,8 +117,6 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
 
 
 def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
-
-  test_loss_hist = []
 
   with torch.no_grad():
     model.eval()
@@ -132,7 +132,6 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
     Y = Y.detach().cpu()
 
     test_loss = criterion(pred_test, Y).item()
-    test_loss_hist.append(test_loss)
     # pred_test n_test x 3
 
     if (iter+1) % 2000 == 0:
@@ -147,7 +146,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
         plt.savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
         plt.close("all")
     
-  return pred_test, test_loss_hist
+  return pred_test, test_loss
 
 
 
@@ -165,10 +164,16 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
 
     # calculating outputs 
     for i in range(test_t.shape[0]):
-        pred_traj[i] = X
+        pred_traj[i] = X # shape [3]
+        X = torch.reshape(X, (1,3))
         cur_pred = model(X.double())
         X = cur_pred
+        if i+1 % 2000 == 0:
+            print("Calculating ", (i+1), "th timestep")
 
+    # save predicted trajectory
+    pred_traj_csv = np.asarray(pred_traj.detach().cpu())
+    np.savetxt('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/' +"pred_traj.csv", pred_traj_csv, delimiter=",")
 
     #plot the x, y, z
     if (iter+1) % 2000 == 0:
