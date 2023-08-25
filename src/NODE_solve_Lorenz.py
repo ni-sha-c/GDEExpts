@@ -4,8 +4,10 @@ import torchdiffeq
 import numpy as np
 import matplotlib.pyplot as plt
 
+from NODE import ODEBlock, ODEFunc_Lorenz
+import sys
+sys.path.append('..')
 from examples.Lorenz import lorenz
-from src.NODE import ODEBlock, ODEFunc_Lorenz
 
 def simulate(ti, tf, init_state, num_state=100001):
     ''' func: call derivative function
