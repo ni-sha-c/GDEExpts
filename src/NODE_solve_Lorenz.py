@@ -4,7 +4,7 @@ import torchdiffeq
 import numpy as np
 import matplotlib.pyplot as plt
 
-from NODE import ODEBlock, ODEFunc_Lorenz
+from .NODE import ODEBlock, ODEFunc_Lorenz
 import sys
 sys.path.append('..')
 from examples.Lorenz import lorenz

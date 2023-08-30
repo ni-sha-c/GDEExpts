@@ -14,3 +14,15 @@ def lorenz(t, u):
         u[0] * (rho - u[2]) - u[1],
         (u[0] * u[1]) - (beta * u[2])
     ])
+
+def lorenz_jac(x):
+    '''lorenz for creating jacobian matrix.
+        x: torch.randn(1,3)
+        call F.jacobian(lorenz, x)'''
+    sigma = 10
+    rho = 28
+    beta = 8/3
+    dx = sigma*(x[0][1] - x[0][0])
+    dy = x[0][0]*(rho - x[0][2]) - x[0][1]
+    dz = x[0][0]*x[0][1] - beta*x[0][2]
+    return dx, dy, dz

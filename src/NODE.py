@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchdiffeq
-from KAF import KAF
+from .KAF import KAF
 
 class ODEBlock(nn.Module):
     def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=True):
