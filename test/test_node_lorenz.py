@@ -94,6 +94,10 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
 
+    ##### Save Model #####
+    path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+    torch.save(m.state_dict(), path)
+
     ##### Save True Trajectory #####
     true_traj_csv = np.asarray(true_traj)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
@@ -114,4 +118,5 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
 
 ##### run experiment #####    
-plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
+if __name__ == '__main__':
+    plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

@@ -1,5 +1,5 @@
 import torch
-
+from numpy import *
 def lorenz(t, u):
     """ Lorenz chaotic differential equation: dy/dt = f(t, y)
     t: time tk to evaluate system
@@ -22,7 +22,8 @@ def lorenz_jac(x):
     sigma = 10
     rho = 28
     beta = 8/3
-    dx = sigma*(x[0][1] - x[0][0])
-    dy = x[0][0]*(rho - x[0][2]) - x[0][1]
-    dz = x[0][0]*x[0][1] - beta*x[0][2]
-    return dx, dy, dz
+    dx = torch.zeros(3)
+    dx[0] = sigma*(x[0][1] - x[0][0])
+    dx[1] = x[0][0]*(rho - x[0][2]) - x[0][1]
+    dx[2] = x[0][0]*x[0][1] - beta*x[0][2]
+    return dx
