@@ -17,7 +17,7 @@ def simulate(ti, tf, init_state, num_state=100001):
 
     init = torch.Tensor(init_state)
     t_eval_point = torch.linspace(ti, tf, num_state)
-    res = torchdiffeq.odeint(lorenz, init, t_eval_point) 
+    res = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4') 
     return res
 
 

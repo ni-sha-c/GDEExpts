@@ -28,8 +28,9 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
         # integration time length is decided to make real time length equal to 2.5
         true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
+                               torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
         true_traj = true_traj[tran:]
+        #true_traj = torch.tensor([[0,0,0],[1,2,3]])
 
         # #--- [0,100] ---#
         # t_n = 2000
