@@ -18,18 +18,15 @@ def test_jac_node(x, optim_name, time_step):
     x = x.to(device)
 
     # load the saved model
-    print("created model")
-    model = sol.create_NODE(device, n_nodes=3, T=time_step)
+    model = sol.create_NODE(device, n_nodes=3, T=time_step).double()
     path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
 
-    print("Loading ... ")
     model.load_state_dict(torch.load(path))
     model.eval()
 
     # compute the jacobian of neural ode
     jacobian_node = F.jacobian(model, x)
 
-    torch.set_printoptions(sci_mode=True)
     print("----- JAC_NODE -----")
     squeeze_jac_node = torch.squeeze(jacobian_node)
     print(squeeze_jac_node)
@@ -38,9 +35,8 @@ def test_jac_node(x, optim_name, time_step):
 
 
 def test_autodiff(x, eps, time_step, method):
-    
+
     deltat = time_step
-    torch.set_printoptions(sci_mode=True)
     # ----- jac_numerical_sol ----- #
     if method == "Euler":
 
@@ -54,15 +50,18 @@ def test_autodiff(x, eps, time_step, method):
         squeeze_jac = torch.squeeze(jacobian_true_ode)
         print(squeeze_jac)
 
-    elif method == "RK4":
-        #lambda solve_lorenz(x) : sol.simulate(0, 0.001, x, 2)
-        t_eval_point = torch.linspace(0, time_step, 2)
-        
-        print("try torchdiffeq.odeint with rk4\n")
-        jac_rk4_ad = F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method='rk4'), x)
-        print(torch.squeeze(jac_rk4_ad)[1])
 
-        jac_rk4_fd = torch.zeros(3,3)
+    elif method == "RK4":
+        # initialize
+        t_eval_point = torch.linspace(0, time_step, 2)
+        jac_rk4_fd = torch.zeros(3,3).double()
+        
+        # Automatic Differentiation
+        jac_rk4_ad = F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method='rk4'), x)[1]
+        #jac_rk4_ad = F.jacobian(lambda x: sol.simulate(0, time_step, x, 2), x)[1]
+        jac_rk4_ad = torch.squeeze(jac_rk4_ad)
+        
+        # Finite Differentiation using Central Difference Approximation
         for i in range(3):
             x_plus = x.clone()
             x_minus = x.clone()
@@ -78,12 +77,19 @@ def test_autodiff(x, eps, time_step, method):
             # compute central diff
             diff = m_plus.clone().detach() - m_minus.clone().detach()
             final = diff/2/eps
-            jac_rk4_fd[:,i] = final
+            jac_rk4_fd[:, i] = final
 
         print("jac_rk4_fd\n", jac_rk4_fd)
 
-        print(torch.allclose(jac_rk4_ad.double(), jac_rk4_fd.double(), rtol=1e-05))
-        return np.linalg.norm(jac_rk4_ad - jac_rk4_fd)
+        print(torch.allclose(jac_rk4_ad, jac_rk4_fd, rtol=1e-05))
+
+        diff = jac_rk4_ad - jac_rk4_fd
+        diff = diff.reshape(3,3)
+        #print("diff: ", diff)
+        norm = torch.linalg.matrix_norm(diff)
+
+        return norm
+
         """
         print("try torchdiffeq.odeint with euler")
         jac_euler = F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method='euler'), x)
@@ -146,23 +152,25 @@ def test_autodiff(x, eps, time_step, method):
 
 
 ##### ----- test run ----- #####
+torch.set_printoptions(sci_mode=True, precision=12)
 
 # create random input
-x = torch.rand(3)
+x = torch.rand(3).double()
+x.requires_grad = True
 print("random x", x)
 
 # train the model
 optim_name = 'AdamW'
-time_step = 1e-2
-eps = 1e-5
+time_step = 5e-4
 
-# print("## --------------- NeuralODE --------------- ##")
-# test_jac_node(x, optim_name, time_step)
+print("## --------------- NeuralODE --------------- ##")
+test_jac_node(x, optim_name, time_step)
 
 print("## --------------- RK4 --------------- ##")
-eps_arr = np.logspace(-8,-2,7)
-err = np.zeros(7)
+eps_arr = torch.logspace(start=-7,end=-2,steps=10)
+err = torch.zeros(10).double()
 for i, eps in enumerate(eps_arr):
+    print("eps: ", eps)
     err[i] = test_autodiff(x, eps, time_step, "RK4")
 
 fig, ax = subplots()
@@ -174,5 +182,6 @@ ax.xaxis.set_tick_params(labelsize=20)
 ax.yaxis.set_tick_params(labelsize=20)
 tight_layout()
 fig.savefig("jac_test_rk4.png")
+
 # print("## --------------- Euler --------------- ##")
 # test_autodiff(x, eps, time_step, "Euler")

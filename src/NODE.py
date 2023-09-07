@@ -4,7 +4,7 @@ import torchdiffeq
 from .KAF import KAF
 
 class ODEBlock(nn.Module):
-    def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=True):
+    def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=False):
         """ Standard ODEBlock class. Can handle all types of ODE functions
             :method:str = {'euler', 'rk4', 'dopri5', 'adams'}
         """
@@ -22,6 +22,7 @@ class ODEBlock(nn.Module):
         if self.adjoint_flag:
             out = torchdiffeq.odeint_adjoint(self.odefunc, x, self.integration_time,
                                              rtol=self.rtol, atol=self.atol, method=self.method)
+            print(out.grad_fn)
         else:
             out = torchdiffeq.odeint(self.odefunc, x, self.integration_time,
                                      rtol=self.rtol, atol=self.atol, method=self.method)
@@ -79,92 +80,37 @@ class ODEFunc_Lorenz (nn.Module):
     super(ODEFunc_Lorenz , self ).__init__()
 
     self.net = nn.Sequential(
-      # nn.Linear(y_dim, 256),
-      # KAF(256),
-      # nn.Linear(256, 512),
-      # KAF(512),
-      # nn.Linear(512, 512), # added
-      # KAF(512),
-      # nn.Linear(512, 512),
-      # KAF(512),
-      # nn.Linear(512, 512), # added
-      # KAF(512),
-      # nn.Linear(512, 1024),
-      # KAF(1024),
-      # nn.Linear(1024, 1024), # added
-      # KAF(1024),
-      # nn.Linear(1024, 512),
-      # KAF(512),
-      # nn.Linear(512, 512),
-      # KAF(512),
-      # nn.Linear(512, 256),
-      # KAF(256),
-      # nn.Linear(256, y_dim)
-
-      # nn.Linear(y_dim, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 512), 
-      # nn.ReLU(),
-      # nn.Linear(512, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 512), 
-      # nn.ReLU(),
-      # nn.Linear(512, 1024),
-      # nn.ReLU(),
-      # nn.Linear(1024, 1024), 
-      # nn.ReLU(),
-      # nn.Linear(1024, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, y_dim)
 
       nn.Linear(y_dim, 256),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(256, 512),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 512), 
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 512),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 512), 
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 1024),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(1024, 1024), 
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(1024, 512),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 512),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(512, 256),
-      nn.SiLU(),
+      nn.ReLU(),
       nn.Linear(256, y_dim)
 
-      # nn.Linear(y_dim, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 1024),
-      # nn.ReLU(),
-      # nn.Linear(1024, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 512),
-      # nn.ReLU(),
-      # nn.Linear(512, 256),
-      # nn.ReLU(),
-      # nn.Linear(256, y_dim)
+      # other activation function lists:
+      # nn.SiLU(),
+      # KAF(256),
     )
 
   def forward(self , t, y): 
+    torch.set_grad_enabled(True) 
+    #print("at time step: ", t, "\ny: ", y)
     return self.net(y)
 
 
