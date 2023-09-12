@@ -49,6 +49,25 @@ class ODEFunc_Sin (nn.Module):
 
 
 
+class ODEFunc_Tent (nn.Module):
+  ''' adapted from ... '''
+
+  def __init__( self , y_dim=2 , n_hidden=4) :
+    super(ODEFunc_Tent , self ).__init__()
+    self.net = nn.Sequential(
+      nn.Linear(y_dim, n_hidden),
+      nn.ReLU(),
+      nn.Linear(n_hidden, n_hidden),
+      nn.ReLU(),
+      nn.Linear(n_hidden, y_dim)
+    )
+
+  def forward(self , t, y): 
+    return self.net(y)
+
+
+
+
 class ODEFunc_Brusselator (nn.Module):
   ''' adapted from ... '''
   
@@ -97,9 +116,9 @@ class ODEFunc_Lorenz (nn.Module):
       nn.ReLU(),
       # performed better with 
       # nn.Linear(1024, 2048), # added
-      # nn.SiLU(),
+      # nn.ReLU(),
       # nn.Linear(2048, 1024), # added
-      # nn.SiLU(),
+      # nn.ReLU(),
       nn.Linear(1024, 512),
       nn.ReLU(),
       nn.Linear(512, 512),

@@ -115,7 +115,7 @@ def Jacobian_Matrix(v, sigma, r, b):
     return np.array([[-sigma, sigma, 0], [r - z, -1, -x], [y, x, -b]])
 
 
-def lyap_exps(iters, x0, method='rk4'):
+def lyap_exps(iters, x0, time_step, optim_name, method):
     '''Compute lyap_exps'''
 
     #initial parameters
@@ -131,7 +131,7 @@ def lyap_exps(iters, x0, method='rk4'):
     trial = []
 
     iters=10**5
-    dt=0.001
+    dt= time_step
     real_time = iters * dt
     t_eval_point = torch.linspace(0, dt, 2)
     print("real time length: ", real_time)
@@ -142,20 +142,48 @@ def lyap_exps(iters, x0, method='rk4'):
     true_traj = true_traj[tran:] # shape 100000 x 3
     I = np.eye(3)
 
+    if method == "NODE":
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    for i in range(0, iters):
+        # load the saved model
+        model = sol.create_NODE(device, n_nodes=3, T=time_step).double()
+        path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(path))
+        model.eval()
 
-        x0 = true_traj[i] #update x0
-        #euler | [0.8628953917544968, 0.032596284260880265, -14.5964585559233]
-        #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
-        #rk4 | [0.8171592187129746, -0.0035154329693902753, -14.48028767356649]
-        J = torch.matmul(F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method=method), x0)[1], U)
-        # QR Decomposition for J
-        Q, R = np.linalg.qr(J.clone().detach().numpy()) # .clone().detach().numpy()
-        lyap.append(np.log(abs(R.diagonal())))
-        U = torch.tensor(Q) #new axes after iteration
+        for i in range(0, iters):
+            print(i)
 
-    LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+            x0 = true_traj[i].to(device).double() #update x0
+
+            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
+            cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
+            J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
+
+            # QR Decomposition for J
+            Q, R = np.linalg.qr(J.clone().detach().numpy())
+
+            lyap.append(np.log(abs(R.diagonal())))
+            U = torch.tensor(Q) #new axes after iteration
+
+        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+
+
+    else:
+        for i in range(0, iters):
+
+            x0 = true_traj[i] #update x0
+
+            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
+            J = torch.matmul(F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method=method), x0)[1], U)
+
+            # QR Decomposition for J
+            Q, R = np.linalg.qr(J.clone().detach().numpy())
+
+            lyap.append(np.log(abs(R.diagonal())))
+            U = torch.tensor(Q) #new axes after iteration
+
+        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
     
     return LE
 
@@ -163,8 +191,11 @@ def lyap_exps(iters, x0, method='rk4'):
 
 
 ##### ----- test run ----- #####
-LE = lyap_exps(iters=10**5, x0 = np.ones(3), method="rk4")
+# compute lyapunov exponent
+LE = lyap_exps(iters=10**5, time_step= 5e-3, optim_name="AdamW", x0 = np.ones(3), method="euler")
 print(LE)
+
+# compute difference in ad_jacobian and fd_jacobian
 '''torch.set_printoptions(sci_mode=True, precision=12)
 
 # create random input
@@ -198,6 +229,3 @@ ax.yaxis.set_tick_params(labelsize=20)
 tight_layout()
 fig.savefig("jac_test_" + method + ".png")
 '''
-
-# print("## --------------- Euler --------------- ##")
-# test_autodiff(x, eps, time_step, "Euler")
