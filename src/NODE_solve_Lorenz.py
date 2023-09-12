@@ -15,7 +15,6 @@ def simulate(ti, tf, init_state, num_state=100001):
               init_state = initial state, in array format like [1,3]
               num_state = num of state you want to generate '''
 
-    torch.enable_grad()
     init = torch.Tensor(init_state)
     t_eval_point = torch.linspace(ti, tf, num_state)
     res = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 

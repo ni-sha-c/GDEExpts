@@ -95,6 +95,11 @@ class ODEFunc_Lorenz (nn.Module):
       nn.ReLU(),
       nn.Linear(1024, 1024), 
       nn.ReLU(),
+      # performed better with 
+      # nn.Linear(1024, 2048), # added
+      # nn.SiLU(),
+      # nn.Linear(2048, 1024), # added
+      # nn.SiLU(),
       nn.Linear(1024, 512),
       nn.ReLU(),
       nn.Linear(512, 512),

@@ -43,7 +43,7 @@ class KAF(nn.Module):
         arXiv preprint arXiv:1807.06302.
     """
 
-    def __init__(self, num_parameters, D=10, conv=False, boundary=4.0, init_fcn=None, kernel='gaussian'):
+    def __init__(self, num_parameters, D=10, conv=False, boundary=4.0, init_fcn=None, kernel='softplus'):
 
         super().__init__()
         self.num_parameters, self.D, self.conv = num_parameters, D, conv

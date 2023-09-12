@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib.pyplot import * 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
@@ -27,10 +27,10 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
                                 n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
 
         # integration time length is decided to make real time length equal to 2.5
-        #true_traj = sol.simulate(0, t_n, 
-                            #    torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
-        #true_traj = true_traj[tran:]
-        true_traj = torch.tensor([[0,0,0],[1,2,3]])
+        true_traj = sol.simulate(0, t_n, 
+                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
+        true_traj = true_traj[tran:]
+        #true_traj = torch.tensor([[0,0,0],[1,2,3]])
 
         # #--- [0,100] ---#
         # t_n = 2000
@@ -61,8 +61,6 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
         true_traj = sol.simulate(0, t_n, 
                                 torch.Tensor([ 0.1, 0.1, 0.1]), t_n*100 + 1)
         true_traj = true_traj[tran:]
-        
-
 
 
     print("testing initial point: ", true_traj[0])
@@ -73,6 +71,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
     ##### create model #####
     m = sol.create_NODE(device, n_nodes=3, T=time_step)
+    torch.cuda.empty_cache()
     print("created model!")
 
     ##### train #####
@@ -98,7 +97,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     ##### Save Model #####
     path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
     torch.save(m.state_dict(), path)
-
+    
     ##### Save True Trajectory #####
     true_traj_csv = np.asarray(true_traj)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
@@ -120,4 +119,4 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
 ##### run experiment #####    
 if __name__ == '__main__':
-    plot_attractor('AdamW', 8000, 5e-4, 5e-4) # optimizer name, epoch, lr, time_step
+    plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
