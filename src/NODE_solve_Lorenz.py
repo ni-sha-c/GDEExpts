@@ -58,6 +58,7 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     return X, Y, X_test, Y_test
 
 
+
 def create_NODE(device, n_nodes, T):
     # define NODE model
     torch.manual_seed(42)

@@ -165,7 +165,7 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
     # calculating outputs 
     for i in range(test_t.shape[0]):
         pred_traj[i] = X # shape [3]
-        X = torch.reshape(X, (1,3))
+        #X = torch.reshape(X, (1,3))
         cur_pred = model(X.double())
         X = cur_pred
         if i+1 % 2000 == 0:

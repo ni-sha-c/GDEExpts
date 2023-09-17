@@ -26,7 +26,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
                                 torch.Tensor([ -8., 7., 27.]), 120*2000+1, 
                                 n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
 
-        # integration time length is decided to make real time length equal to 2.5
+        # integration time length is decided to make real time length equal to 1
         true_traj = sol.simulate(0, t_n, 
                                 torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
         true_traj = true_traj[tran:]
@@ -119,4 +119,4 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
 ##### run experiment #####    
 if __name__ == '__main__':
-    plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
+    plot_attractor('AdamW', 12000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

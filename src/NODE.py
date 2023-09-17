@@ -22,13 +22,12 @@ class ODEBlock(nn.Module):
         if self.adjoint_flag:
             out = torchdiffeq.odeint_adjoint(self.odefunc, x, self.integration_time,
                                              rtol=self.rtol, atol=self.atol, method=self.method)
-            print(out.grad_fn)
         else:
             out = torchdiffeq.odeint(self.odefunc, x, self.integration_time,
                                      rtol=self.rtol, atol=self.atol, method=self.method)
 
         return out[-1]
-    
+
 
 class ODEFunc_Sin (nn.Module):
   ''' adapted from ... '''
@@ -52,10 +51,14 @@ class ODEFunc_Sin (nn.Module):
 class ODEFunc_Tent (nn.Module):
   ''' adapted from ... '''
 
-  def __init__( self , y_dim=2 , n_hidden=4) :
+  def __init__( self , y_dim=1 , n_hidden=4) :
     super(ODEFunc_Tent , self ).__init__()
     self.net = nn.Sequential(
       nn.Linear(y_dim, n_hidden),
+      nn.ReLU(),
+      nn.Linear(n_hidden, n_hidden),
+      nn.ReLU(),
+      nn.Linear(n_hidden, n_hidden),
       nn.ReLU(),
       nn.Linear(n_hidden, n_hidden),
       nn.ReLU(),
@@ -100,32 +103,80 @@ class ODEFunc_Lorenz (nn.Module):
 
     self.net = nn.Sequential(
 
-      nn.Linear(y_dim, 256),
-      nn.ReLU(),
-      nn.Linear(256, 512),
-      nn.ReLU(),
-      nn.Linear(512, 512), 
-      nn.ReLU(),
-      nn.Linear(512, 512),
-      nn.ReLU(),
-      nn.Linear(512, 512), 
-      nn.ReLU(),
-      nn.Linear(512, 1024),
-      nn.ReLU(),
-      nn.Linear(1024, 1024), 
-      nn.ReLU(),
-      # performed better with 
+      nn.Linear(y_dim, 32*9),
+      nn.SiLU(),
+      nn.Linear(32*9, 64*9),
+      nn.SiLU(),
+      nn.Linear(64*9, 128*9),
+      nn.SiLU(),
+      nn.Linear(128*9, 256*9),
+      nn.SiLU(),
+      nn.Linear(256*9, 128*9),
+      nn.SiLU(),
+      nn.Linear(128*9, 64*9),
+      nn.SiLU(),
+      nn.Linear(64*9, 32*9),
+      nn.SiLU(),
+      nn.Linear(32*9, y_dim)
+
+      # nn.Linear(y_dim, 64*3),
+      # nn.SiLU(),
+      # nn.Linear(64*3, 128*3),
+      # nn.SiLU(),
+      # nn.Linear(128*3, 256*3),
+      # nn.SiLU(),
+      # nn.Linear(256*3, 512*3),
+      # nn.SiLU(),
+      # nn.Linear(512*3, 256*3),
+      # nn.SiLU(),
+      # nn.Linear(256*3, 128*3),
+      # nn.SiLU(),
+      # nn.Linear(128*3, 64*3),
+      # nn.SiLU(),
+      # nn.Linear(64*3, y_dim)
+
+      # nn.Linear(y_dim, 256),
+      # nn.SiLU(),
+      # nn.Linear(256, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 1024),
+      # nn.SiLU(),
+      # nn.Linear(1024, 2048),
+      # nn.SiLU(),
+      # nn.Linear(2048, 1024),
+      # nn.SiLU(),
+      # nn.Linear(1024, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 256),
+      # nn.SiLU(),
+      # nn.Linear(256, y_dim)
+
+      # nn.Linear(y_dim, 256),
+      # nn.SiLU(),
+      # nn.Linear(256, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 512), 
+      # nn.SiLU(),
+      # nn.Linear(512, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 512), 
+      # nn.SiLU(),
+      # nn.Linear(512, 1024),
+      # nn.SiLU(),
+      # nn.Linear(1024, 1024), 
+      # nn.SiLU(),
+      # # performed better with 
       # nn.Linear(1024, 2048), # added
-      # nn.ReLU(),
+      # nn.SiLU(),
       # nn.Linear(2048, 1024), # added
-      # nn.ReLU(),
-      nn.Linear(1024, 512),
-      nn.ReLU(),
-      nn.Linear(512, 512),
-      nn.ReLU(),
-      nn.Linear(512, 256),
-      nn.ReLU(),
-      nn.Linear(256, y_dim)
+      # nn.SiLU(),
+      # nn.Linear(1024, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 512),
+      # nn.SiLU(),
+      # nn.Linear(512, 256),
+      # nn.SiLU(),
+      # nn.Linear(256, y_dim)
 
       # other activation function lists:
       # nn.SiLU(),
@@ -133,9 +184,10 @@ class ODEFunc_Lorenz (nn.Module):
     )
 
   def forward(self , t, y): 
-    torch.set_grad_enabled(True) 
-    #print("at time step: ", t, "\ny: ", y)
-    return self.net(y)
+    #torch.set_grad_enabled(True) 
+    res = self.net(y)
+    #print("at t: ", t, res)
+    return res
 
 
 class ODEFunc_Lorenz_periodic (nn.Module):
@@ -144,19 +196,30 @@ class ODEFunc_Lorenz_periodic (nn.Module):
   def __init__( self , y_dim=3 , n_hidden=4) :
     super(ODEFunc_Lorenz_periodic , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, 256),
-      nn.ReLU(),
-      nn.Linear(256, 1024),
-      nn.ReLU(),
-      nn.Linear(1024, 512),
-      nn.ReLU(),
-      nn.Linear(512, 512),
-      nn.ReLU(),
-      nn.Linear(512, 512),
-      nn.ReLU(),
-      nn.Linear(512, 256),
-      nn.ReLU(),
-      nn.Linear(256, y_dim)
+
+      # nn.Linear(y_dim, 9),
+      # nn.SiLU(),
+      # nn.Linear(9, 4*9),
+      # nn.SiLU(),
+      # nn.Linear(4*9, 4*9),
+      # nn.SiLU(),
+      # nn.Linear(4*9, 4*9),
+      # nn.SiLU(),
+      # nn.Linear(4*9, 9),
+      # nn.SiLU(),
+      # nn.Linear(9, y_dim)
+
+      nn.Linear(y_dim, 16*9),
+      nn.SiLU(),
+      nn.Linear(16*9, 32*9),
+      nn.SiLU(),
+      nn.Linear(32*9, 64*9),
+      nn.SiLU(),
+      nn.Linear(64*9, 32*9),
+      nn.SiLU(),
+      nn.Linear(32*9, 16*9),
+      nn.SiLU(),
+      nn.Linear(16*9, y_dim)
 
       # nn.Linear(y_dim, 256),
       # nn.SiLU(),

@@ -130,7 +130,7 @@ def lyap_exps(iters, x0, time_step, optim_name, method):
     lyap = [] #empty list to store the lengths of the orthogonal axes
     trial = []
 
-    iters=10**5
+    iters=10**4
     dt= time_step
     real_time = iters * dt
     t_eval_point = torch.linspace(0, dt, 2)
@@ -147,8 +147,8 @@ def lyap_exps(iters, x0, time_step, optim_name, method):
 
         # load the saved model
         model = sol.create_NODE(device, n_nodes=3, T=time_step).double()
-        path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
-        model.load_state_dict(torch.load(path))
+        path = "expt_lorenz_periodic/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
         for i in range(0, iters):
@@ -192,7 +192,7 @@ def lyap_exps(iters, x0, time_step, optim_name, method):
 
 ##### ----- test run ----- #####
 # compute lyapunov exponent
-LE = lyap_exps(iters=10**5, time_step= 5e-3, optim_name="AdamW", x0 = np.ones(3), method="euler")
+LE = lyap_exps(iters=10**5, time_step= 1e-2, optim_name="AdamW", x0 = np.ones(3), method="NODE")
 print(LE)
 
 # compute difference in ad_jacobian and fd_jacobian

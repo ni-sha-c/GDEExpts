@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -6,16 +7,101 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
-from src import NODE_solve_Lorenz_periodic as sol 
-from src import NODE_util as util
+from examples import Tent_map as dyn_sys
+sys.path.append('..')
+from src.NODE import ODEBlock, ODEFunc_Tent
+#from src import NODE_solve_Lorenz_periodic as sol 
+#from src import NODE_util as util
 
 def create_data():
-    ''' create tent_map data for NODE training'''
-    int_time = torch.arange(0,2,0.01)
-    data = tensor.zeros(1, len(int_time))
+    ''' create tent_map data for NODE training sequentially '''
+
+    int_time = torch.arange(0,2,0.001)
+    data = torch.zeros(1, len(int_time))
+
     for i in range(len(int_time)):
-        data[i] = tent_map(int_ime[i])
+        data[0, i] = dyn_sys.tent_map(int_time[i])
+
     return data
+
+
+def create_NODE(device, n_nodes, T):
+    # define NODE model
+    torch.manual_seed(42)
+
+    neural_func = ODEFunc_Tent(y_dim=n_nodes, n_hidden=64).to(device)
+    node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
+
+    m = nn.Sequential(
+        node).to(device)
+    return m
+
+
+
+def train(model, device, X, Y, X_test, Y_test, optimizer, criterion, epochs, lr, time_step):
+
+    # return loss, test_loss, model_final
+    num_grad_steps = 0
+
+    pred_train = []
+    true_train = []
+    loss_hist = []
+    test_loss_hist = []
+    train_loss = 0
+    optim_name = 'AdamW'
+
+    for i in range(epochs): # looping over epochs
+        model.train()
+        model.double()
+
+        X = X.to(device)
+        Y = Y.to(device)
+
+        y_pred = model(X).to(device)
+
+        optimizer.zero_grad()
+        loss = criterion(y_pred, Y)
+        train_loss = loss.item()
+        loss.backward()
+        optimizer.step()
+
+        num_grad_steps += 1
+
+        pred_train.append(y_pred.detach().cpu().numpy())
+        true_train.append(Y.detach().cpu().numpy())
+        loss_hist.append(train_loss)
+        print(num_grad_steps, train_loss)
+
+        ##### test one_step #####
+        pred_test, test_loss = evaluate(model, X_test, Y_test, device, criterion, i, optim_name)
+        test_loss_hist.append(test_loss)
+        
+
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+
+
+
+def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
+
+  with torch.no_grad():
+    model.eval()
+
+    X = X_test.to(device)
+    Y = Y_test.to(device)
+
+    # calculating outputs again with zeroed dropout
+    y_pred_test = model(X)
+
+    # save predicted node feature for analysis
+    pred_test = y_pred_test.detach().cpu()
+    Y = Y.detach().cpu()
+
+    test_loss = criterion(pred_test, Y).item()
+    # pred_test n_test x 3
+    
+  return pred_test, test_loss
+
+
 
 def plot_attractor(optim_name, num_epoch, lr, time_step):
     ''' func: plotting the attractor '''
@@ -23,98 +109,62 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
-    X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 120*2000+1, 
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
+    ##### create dataset #####
+    data = create_data()
+    n_train = int(data.shape[1]*0.8) # cause it's 0-indexed
+    n_test = int(data.shape[1]*0.2) - 1
+    n_trans = 0
+    data = data.T
 
-        # integration time length is decided to make real time length equal to 2.5
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
-        true_traj = true_traj[tran:]
+    ##### training test data split #####
+    X = np.zeros((n_train, 1))
+    Y = np.zeros((n_train, 1))
 
-        # #--- [0,100] ---#
-        # t_n = 2000
-        # X, Y, X_test, Y_test = sol.create_data(0, 100, torch.Tensor([ -8., 7., 27.]), 200001, n_train=64000, n_test=14000, n_nodes=3, n_trans=2000)
+    for i in range(n_train):
+        X[i] = data[n_trans+i].detach().numpy()
+        Y[i] = data[n_trans+1+i].detach().numpy()
 
-        # true_traj = sol.simulate(0, t_n, torch.Tensor([ -8., 7., 27.]), t_n*2000+1)
+    X_test = np.zeros((n_test, 1))
+    Y_test = np.zeros((n_test, 1))
 
-    elif time_step == 5e-3:
+    for i in range(n_test):
+        X_test[i] = data[n_trans+n_train+i].detach().numpy()
+        print(n_trans+1+n_train+i)
+        Y_test[i] = data[n_trans+1+n_train+i].detach().numpy()
 
-        t_n = 200
-        tran = 200
-        X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 120*200+1,
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
+    X = torch.tensor(X).reshape(n_train, 1)
+    Y = torch.tensor(Y).reshape(n_train, 1)
+    X_test = torch.tensor(X_test).reshape(n_test, 1)
+    Y_test = torch.tensor(Y_test).reshape(n_test, 1)
 
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*200+1)
-        true_traj = true_traj[tran:]
-
-    elif time_step == 1e-2:
-
-        t_n = 100
-        tran = 100
-        X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 12001, 
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
-        # test multi-time step with new initial points
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*100 + 1)
-        true_traj = true_traj[tran:]
-        
-
-
-
-    print("testing initial point: ", true_traj[0])
     print("created data!")
 
-    ##### plot training data trajectory #####
-    util.plot_traj_lorenz(X, optim_name, time_step, True)
 
     ##### create model #####
-    m = sol.create_NODE(device, n_nodes=3, T=time_step)
+    m = create_NODE(device, n_nodes=1, T=time_step)
     print("created model!")
 
     ##### train #####
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay =5e-4)
 
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
+    pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(m,
                                                                              device,
                                                                              X,
                                                                              Y,
                                                                              X_test,
                                                                              Y_test, 
-                                                                             true_traj,
                                                                              optimizer,
                                                                              criterion,
                                                                              epochs=num_epoch,
                                                                              lr=lr,
-                                                                             time_step=time_step,
-                                                                             integration_time=t_n)
+                                                                             time_step=time_step)
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
-
-    ##### Save True Trajectory #####
-    true_traj_csv = np.asarray(true_traj)
-    np.savetxt('expt_lorenz_periodic/'+ optim_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
-
-    ##### Save Training/Test Loss #####
-    loss_csv = np.asarray(loss_hist)
-    test_loss_csv = np.asarray(test_loss_hist)
-    np.savetxt('expt_lorenz_periodic/'+ optim_name + '/' + str(time_step) + '/' +"training_loss.csv", loss_csv, delimiter=",")
-    np.savetxt('expt_lorenz_periodic/'+ optim_name + '/' + str(time_step) + '/' +"test_loss.csv", test_loss_csv, delimiter=",")
-
-    ##### Plot Phase Space #####
-    util.plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time_step, True)
-
-    ##### Plot Time Space #####
-    util.plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, True)
 
     return 
 
 
 ##### run experiment #####    
-data = create_data()
-print(data)
-#plot_attractor('AdamW', 8000, 5e-4, 5e-4) # optimizer name, epoch, lr, time_step
+
+plot_attractor('AdamW', 8000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
