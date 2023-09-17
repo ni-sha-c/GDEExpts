@@ -11,6 +11,43 @@ from examples.Lorenz import lorenz
 from src import NODE_solve_Lorenz as sol
 
 
+def relative_error(optim_name, time_step):
+    # Load training_error csv file
+    training_err = torch.from_numpy(np.genfromtxt("expt_lorenz/"+optim_name+"/"+str(time_step)+"/"+"training_loss.csv", delimiter=","))
+    test_err = torch.from_numpy(np.genfromtxt("expt_lorenz/"+optim_name+"/"+str(time_step)+"/"+"test_loss.csv", delimiter=","))
+
+    # Compute supereme x
+    t_n = 100
+    tran = 100
+    X, Y, X_test, Y_test = sol.create_data(0, 120, 
+                                torch.Tensor([ -8., 7., 27.]), 12001, 
+                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
+    x_norm = torch.zeros(X.shape[0])
+    for i in range(X.shape[0]):
+        x_norm[i] = torch.linalg.norm(X[i])
+    
+    x_norm_sup = torch.max(x_norm)
+
+    # Compute relative error
+    train_err_plot = training_err/x_norm_sup
+    test_err_plot = test_err/x_norm_sup
+
+    # Plot relative error
+    fig, ax = subplots()
+    ax.semilogy(train_err_plot.detach().numpy(), ".", ms = 8.0)
+    ax.semilogy(test_err.detach().numpy(), ".", ms = 8.0)
+    ax.grid(True)
+    ax.set_xlabel("epoch", fontsize=20)
+    ax.set_ylabel(r"$\frac{L(x)}{sup_{x}\|x\|^2}$", fontsize=20)
+    ax.legend(['Relative training error', 'Relative test error'])
+    ax.xaxis.set_tick_params(labelsize=20)
+    ax.yaxis.set_tick_params(labelsize=20)
+    tight_layout()
+    fig.savefig("relative_error.png")
+
+    return
+
+
 def plot_time_average(init, time_step, optim_name, tau, component):
     '''plot |avg(z_tau) - avg(z_t)|'''
 
@@ -215,7 +252,9 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
 torch.set_printoptions(sci_mode=True, precision=10)
 x = torch.randn(3)
 eps = 1e-6
-plot_time_average(x, time_step=0.01, optim_name='AdamW', tau=300, component=2)
+relative_error(optim_name="AdamW", time_step=0.01)
+
+#plot_time_average(x, time_step=0.01, optim_name='AdamW', tau=300, component=2)
 
 #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
 #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
