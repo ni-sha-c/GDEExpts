@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torchdiffeq
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,37 +10,35 @@ import sys
 sys.path.append('..')
 from examples.Lorenz import lorenz
 
-def simulate(ti, tf, init_state, num_state=100001):
+def simulate(ti, tf, init_state, time_step):
     ''' func: call derivative function
         args: ti, tf = interval of integration
               init_state = initial state, in array format like [1,3]
-              num_state = num of state you want to generate '''
+              time_step = time step size used for time integrator '''
 
     init = torch.Tensor(init_state)
-    t_eval_point = torch.linspace(ti, tf, num_state)
-    res = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
-    return res
+    t_eval_point = torch.arange(ti,tf,time_step)
+    traj = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
+    print("Finished Simulating")
+
+    return traj
 
 
-def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=2, n_trans=90000):
+def create_data(traj, n_train, n_test, n_nodes, n_trans):
     ''' func: call simulate to create graph and train, test dataset
         args: ti, tf, init_state = param for simulate()
               n_train = num of training instance
               n_test = num of test instance
               n_nodes = num of nodes in graph
               n_trans = num of transition phase '''
-    
-    ##### call simulate #####
-    res = simulate(ti, tf, init_state, num_state)
-    print("Finished Simulating")
 
     ##### create training dataset #####
     X = np.zeros((n_train, n_nodes))
     Y = np.zeros((n_train, n_nodes))
 
     for i in range(n_train):
-        X[i] = res[n_trans+i]
-        Y[i] = res[n_trans+1+i]
+        X[i] = traj[n_trans+i]
+        Y[i] = traj[n_trans+1+i]
 
     X = torch.tensor(X).reshape(n_train,n_nodes)
     Y = torch.tensor(Y).reshape(n_train,n_nodes)
@@ -49,21 +48,21 @@ def create_data(ti, tf, init_state, num_state, n_train=200, n_test=200, n_nodes=
     Y_test = np.zeros((n_test, n_nodes))
 
     for i in range(n_test):
-        X_test[i] = res[n_trans+n_train+i]
-        Y_test[i] = res[n_trans+1+n_train+i]
+        X_test[i] = traj[n_trans+n_train+i]
+        Y_test[i] = traj[n_trans+1+n_train+i]
 
     X_test = torch.tensor(X_test).reshape(n_test, n_nodes)
     Y_test = torch.tensor(Y_test).reshape(n_test, n_nodes)
 
-    return X, Y, X_test, Y_test
+    return [X, Y, X_test, Y_test]
 
 
 
-def create_NODE(device, n_nodes, T):
+def create_NODE(device, n_nodes, n_hidden, T):
     # define NODE model
     torch.manual_seed(42)
 
-    neural_func = ODEFunc_Lorenz(y_dim=n_nodes, n_hidden=3).to(device)
+    neural_func = ODEFunc_Lorenz(y_dim=n_nodes, n_hidden=64).to(device)
     node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
 
     m = nn.Sequential(
@@ -71,7 +70,26 @@ def create_NODE(device, n_nodes, T):
     return m
 
 
-def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epochs, lr, time_step, integration_time):
+
+def define_optimizer(optim_name, model, lr, weight_decay):
+
+    optim_mapping = {
+    "Adam": optim.Adam,
+    "AdamW": optim.AdamW,
+    "SGD": optim.SGD,
+    "RMSprop": optim.RMSprop}
+
+    if optim_name in optim_mapping:
+        optim_class = optim_mapping[optim_name]
+        optimizer = optim_class(model.parameters(), lr=lr, weight_decay =weight_decay)
+    else:
+        print(optim_name, " is not in the optim_mapping!")
+    
+    return optimizer
+
+
+
+def train(model, device, dataset, true_t, optimizer, criterion, epochs, lr, time_step, integration_time):
 
     # return loss, test_loss, model_final
     num_grad_steps = 0
@@ -82,6 +100,7 @@ def train(model, device, X, Y, X_test, Y_test, true_t, optimizer, criterion, epo
     test_loss_hist = []
     train_loss = 0
     optim_name = 'AdamW'
+    X, Y, X_test, Y_test = dataset
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -155,6 +174,7 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time):
 
+  print("multistep shape: ", true_traj.shape)
   test_t = torch.linspace(0, 1, true_traj.shape[0]) # num_of_extrapolation_dataset
   pred_traj = torch.zeros(true_traj.shape[0], 3).to(device)
 
@@ -234,5 +254,7 @@ def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, i
     plt.legend(['element x', 'element y', 'element z'])
     plt.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     plt.close("all")
+
+    print("multi step pred error: ", error_x[-1])
 
     return

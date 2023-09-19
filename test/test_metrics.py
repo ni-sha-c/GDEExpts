@@ -2,12 +2,13 @@ import torch
 import numpy as np
 import torchdiffeq
 from matplotlib.pyplot import * 
+import torch.autograd.functional as F
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
-from examples.Lorenz import lorenz
+from examples.Lorenz import *
 from src import NODE_solve_Lorenz as sol
 
 
@@ -244,19 +245,115 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
 
     return
 
-#def plot_lyap_expts():
 
 
-##### test run #####
+def lyap_exps(chaotic, true_traj, iters, x0, time_step, optim_name, method):
+    ''' Compute Lyapunov Exponents '''
 
-torch.set_printoptions(sci_mode=True, precision=10)
-x = torch.randn(3)
-eps = 1e-6
-relative_error(optim_name="AdamW", time_step=0.01)
+    #initial parameters of lorenz
+    if chaotic == True:
+        sigma = 10
+        r = 28
+        b = 8/3
+    else:
+        sigma = 10
+        r = 350
+        b = 8/3
 
-#plot_time_average(x, time_step=0.01, optim_name='AdamW', tau=300, component=2)
+    # QR Method where U = tangent vector, V = regular system
+    U = torch.eye(3)
+    lyap = [] #empty list to store the lengths of the orthogonal axes
+    trial = []
 
-#perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
-#perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
+    real_time = iters * time_step
+    t_eval_point = torch.linspace(0, time_step, 2)
+    tran = 0
+    I = np.eye(3)
 
-# multi_step_pred_err(x, optim_name="AdamW", time_step=0.01, integration_time=1000, component=0)
+    if method == "NODE":
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        # load the saved model
+        model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
+        path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(path), strict=False)
+        model.eval()
+
+        for i in range(0, iters):
+
+            #update x0
+            x0 = true_traj[i].to(device).double()
+
+            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
+            cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
+            J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
+
+            # QR Decomposition for J
+            Q, R = np.linalg.qr(J.clone().detach().numpy())
+
+            lyap.append(np.log(abs(R.diagonal())))
+            U = torch.tensor(Q) #new axes after iteration
+
+        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+
+
+    else:
+        for i in range(0, iters):
+
+            x0 = true_traj[i] #update x0
+
+            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
+            # if iters % 1000 == 0:
+            #     print("jacobian_rk4", F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method=method), x0)[1])
+
+            J = torch.matmul(F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method=method), x0)[1], U)
+
+            # QR Decomposition for J
+            Q, R = np.linalg.qr(J.clone().detach().numpy())
+
+            lyap.append(np.log(abs(R.diagonal())))
+            U = torch.tensor(Q) #new axes after iteration
+
+        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+    
+    return torch.tensor(LE)
+
+
+
+def long_time_avg(pred_result, true_result):
+    ''' For Calculating Long Time Average of System.
+        Example call: long_time_avg('./expt_lorenz/AdamW/0.01/pred_traj.csv', './expt_lorenz/AdamW/0.01/true_traj.csv') '''
+    
+    pred = np.loadtxt(pred_result, delimiter=",", dtype=float)
+    true = np.loadtxt(true_result, delimiter=",", dtype=float)
+
+    print(pred[0:5, 2])
+    print(pred[1000:1005, 2])
+
+    print(np.mean(pred[:,2]))
+    print(np.mean(true[:,2]))
+
+    return
+
+
+
+
+
+##### ----- test run ----- #####
+if __name__ == '__main__':
+    torch.set_printoptions(sci_mode=True, precision=10)
+    x = torch.randn(3)
+    eps = 1e-6
+
+    # compute lyapunov exponent
+    LE = lyap_exps(chaotic= True, iters=10**5, time_step= 1e-2, optim_name="AdamW", x0 = x, method="NODE")
+    print(LE)
+
+    relative_error(optim_name="AdamW", time_step=0.01)
+
+    #plot_time_average(x, time_step=0.01, optim_name='AdamW', tau=300, component=2)
+
+    #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
+    #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
+
+    # multi_step_pred_err(x, optim_name="AdamW", time_step=0.01, integration_time=1000, component=0)

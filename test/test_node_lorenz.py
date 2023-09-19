@@ -9,68 +9,40 @@ sys.path.append('..')
 from src import NODE_solve_Lorenz as sol 
 from src import NODE_util as util
 
-def plot_attractor(optim_name, num_epoch, lr, time_step):
+def plot_attractor(x0, x_multi_0, optim_name, num_epoch, lr, time_step):
     ''' func: plotting the attractor '''
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
+
     ##### create data for train, test, and extrapolation #####
     if time_step == 5e-4:
-
-        #--- [0,40] ---#
-        t_n = 2000
         # transition time is decided so that Model Time Unit (delta t * t_n) = 1
-        tran = 2000 
-        X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 120*2000+1, 
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
-
         # integration time length is decided to make real time length equal to 1
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*2000+1)
-        true_traj = true_traj[tran:]
-        #true_traj = torch.tensor([[0,0,0],[1,2,3]])
-
-        # #--- [0,100] ---#
-        # t_n = 2000
-        # X, Y, X_test, Y_test = sol.create_data(0, 100, torch.Tensor([ -8., 7., 27.]), 200001, n_train=64000, n_test=14000, n_nodes=3, n_trans=2000)
-
-        # true_traj = sol.simulate(0, t_n, torch.Tensor([ -8., 7., 27.]), t_n*2000+1)
+        iters = 5*(10**5)
+        tran_n = 2000
 
     elif time_step == 5e-3:
-
-        t_n = 200
-        tran = 200
-        X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 120*200+1,
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
-
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*200+1)
-        true_traj = true_traj[tran:]
+        iters = 2*(10**5)
+        tran_n = 200
 
     elif time_step == 1e-2:
+        iters = 2*(10**4)
+        tran_n = 100
 
-        t_n = 100
-        tran = 100
-        X, Y, X_test, Y_test = sol.create_data(0, 120, 
-                                torch.Tensor([ -8., 7., 27.]), 12001, 
-                                n_train=10000, n_test=1800, n_nodes=3, n_trans=tran)
-        # test multi-time step with new initial points
-        true_traj = sol.simulate(0, t_n, 
-                                torch.Tensor([ 0.1, 0.1, 0.1]), t_n*100 + 1)
-        true_traj = true_traj[tran:]
+    real_time = iters * time_step
+    traj = sol.simulate(0, 120, x0, time_step)
+    dataset = sol.create_data(traj, n_train=10000, n_test=1800, n_nodes=3, n_trans=tran_n)
+    longer_traj = sol.simulate(0, real_time, x_multi_0, time_step)
+    multistep_traj = longer_traj[tran_n:]
 
-
-    print("testing initial point: ", true_traj[0])
+    print("testing initial point: ", multistep_traj[0])
+    print("real time: ", real_time)
     print("created data!")
 
-    ##### plot training data trajectory #####
-    util.plot_traj_lorenz(X, optim_name, time_step, False)
-
     ##### create model #####
-    m = sol.create_NODE(device, n_nodes=3, T=time_step)
+    m = sol.create_NODE(device, n_nodes=3, n_hidden=64,T=time_step)
     torch.cuda.empty_cache()
     print("created model!")
 
@@ -80,11 +52,8 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
     pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(m,
                                                                              device,
-                                                                             X,
-                                                                             Y,
-                                                                             X_test,
-                                                                             Y_test, 
-                                                                             true_traj,
+                                                                             dataset, 
+                                                                             multistep_traj,
                                                                              optimizer,
                                                                              criterion,
                                                                              epochs=num_epoch,
@@ -99,7 +68,7 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     torch.save(m.state_dict(), path)
     
     ##### Save True Trajectory #####
-    true_traj_csv = np.asarray(true_traj)
+    true_traj_csv = np.asarray(multistep_traj)
     np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
 
     ##### Save Training/Test Loss #####
@@ -109,7 +78,11 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
     np.savetxt('expt_lorenz/'+ optim_name + '/' + str(time_step) + '/' +"test_loss.csv", test_loss_csv, delimiter=",")
 
     ##### Plot Phase Space #####
+    X, Y, X_test, Y_test = dataset
     util.plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time_step, False)
+
+    ##### Plot training data trajectory #####
+    util.plot_traj_lorenz(X, optim_name, time_step, False)
 
     ##### Plot Time Space #####
     util.plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, False)
@@ -119,4 +92,6 @@ def plot_attractor(optim_name, num_epoch, lr, time_step):
 
 ##### run experiment #####    
 if __name__ == '__main__':
-    plot_attractor('AdamW', 12000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
+    x0 = torch.randn(3) #torch.Tensor([ -8., 7., 27.])
+    x_multi_0 = torch.randn(3) # torch.Tensor([ 0.1, 0.1, 0.1])
+    plot_attractor(x0, x_multi_0, 'AdamW', 12000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

@@ -101,40 +101,36 @@ class ODEFunc_Lorenz (nn.Module):
   def __init__( self , y_dim=3 , n_hidden=4) :
     super(ODEFunc_Lorenz , self ).__init__()
 
+    # Define the fully connected layer
+    self.fc = nn.Linear(n_hidden, y_dim)
+
     self.net = nn.Sequential(
 
       nn.Linear(y_dim, 32*9),
       nn.SiLU(),
       nn.Linear(32*9, 64*9),
       nn.SiLU(),
-      nn.Linear(64*9, 128*9),
-      nn.SiLU(),
-      nn.Linear(128*9, 256*9),
-      nn.SiLU(),
-      nn.Linear(256*9, 128*9),
-      nn.SiLU(),
-      nn.Linear(128*9, 64*9),
-      nn.SiLU(),
-      nn.Linear(64*9, 32*9),
-      nn.SiLU(),
-      nn.Linear(32*9, y_dim)
+      nn.Linear(64*9, y_dim)
 
-      # nn.Linear(y_dim, 64*3),
-      # nn.SiLU(),
-      # nn.Linear(64*3, 128*3),
-      # nn.SiLU(),
-      # nn.Linear(128*3, 256*3),
-      # nn.SiLU(),
-      # nn.Linear(256*3, 512*3),
-      # nn.SiLU(),
-      # nn.Linear(512*3, 256*3),
-      # nn.SiLU(),
-      # nn.Linear(256*3, 128*3),
-      # nn.SiLU(),
-      # nn.Linear(128*3, 64*3),
-      # nn.SiLU(),
-      # nn.Linear(64*3, y_dim)
 
+
+      # nn.Linear(y_dim, 32*9),
+      # nn.SiLU(),
+      # nn.Linear(32*9, 64*9),
+      # nn.SiLU(),
+      # nn.Linear(64*9, 128*9),
+      # nn.SiLU(),
+      # nn.Linear(128*9, 256*9),
+      # nn.SiLU(),
+      # nn.Linear(256*9, 128*9),
+      # nn.SiLU(),
+      # nn.Linear(128*9, 64*9),
+      # nn.SiLU(),
+      # nn.Linear(64*9, 32*9),
+      # nn.SiLU(),
+      # nn.Linear(32*9, y_dim)
+
+      
       # nn.Linear(y_dim, 256),
       # nn.SiLU(),
       # nn.Linear(256, 512),
@@ -184,9 +180,10 @@ class ODEFunc_Lorenz (nn.Module):
     )
 
   def forward(self , t, y): 
-    #torch.set_grad_enabled(True) 
+    # #torch.set_grad_enabled(True) 
     res = self.net(y)
-    #print("at t: ", t, res)
+    # #print("at t: ", t, res)
+
     return res
 
 
