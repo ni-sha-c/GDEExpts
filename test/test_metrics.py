@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torchdiffeq
 from matplotlib.pyplot import * 
+from scipy import stats
 import torch.autograd.functional as F
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
@@ -10,6 +11,7 @@ sys.path.append('..')
 
 from examples.Lorenz import *
 from src import NODE_solve_Lorenz as sol
+
 
 
 def relative_error(optim_name, time_step):
@@ -49,6 +51,7 @@ def relative_error(optim_name, time_step):
     return
 
 
+
 def plot_time_average(init, time_step, optim_name, tau, component):
     '''plot |avg(z_tau) - avg(z_t)|'''
 
@@ -60,33 +63,35 @@ def plot_time_average(init, time_step, optim_name, tau, component):
     diff_time_avg_rk4 = torch.zeros(n_val.shape)
     diff_time_avg_node = torch.zeros(n_val.shape)
 
-    # Create phi_rk4[:, component]
-    t_eval_point = torch.arange(0, tau, time_step)
-    sol_tau = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
-    time_avg_tau_rk4 = torch.mean(sol_tau[transition_phase:, component])
-    print("mean rk4: ", time_avg_tau_rk4)
-
-    for i, n in enumerate(n_val):
-        print(i)
-        # create data
-        t = torch.arange(0, n, time_step)
-        sol_n = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8) 
-
-        # compute time average at integration time = n
-        time_avg_n = torch.mean(sol_n[transition_phase:, component])
-
-        # calculate average and difference
-        diff_time_avg_rk4[i] = torch.abs(time_avg_n - time_avg_tau_rk4)
-
-
-
     # Load the saved model
-    model = sol.create_NODE(device, n_nodes=3, T=time_step).double()
+    model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
     path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
 
-    # Create phi_NODE[:, component]
+    #----- Create phi_rk4[:, component] -----#
+    t_eval_point = torch.arange(0, tau, time_step)
+    iters = t_eval_point.shape[0]
+    sol_tau = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
+    time_avg_tau_rk4 = torch.mean(sol_tau[:, component])
+
+    for i, n in enumerate(n_val):
+        # create data
+        t = torch.arange(0, n, time_step)
+        sol_n = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8) 
+        print("sol")
+
+        # compute time average at integration time = n
+        time_avg_rk4 = torch.mean(sol_n[:, component])
+
+        # calculate average and difference
+        diff_time_avg_rk4[i] = torch.abs(time_avg_rk4 - time_avg_tau_rk4)
+
+    print("mean rk4: ", time_avg_tau_rk4)
+    print("sanity check rk4: ", diff_time_avg_rk4[-1])
+
+
+    #----- Create phi_NODE[:, component] -----#
     x = init
     x = x.to(device)
     phi_tau = torch.zeros(tau, 3).to(device)
@@ -95,29 +100,38 @@ def plot_time_average(init, time_step, optim_name, tau, component):
         phi_tau[i] = x # shape [3]
         cur_pred = model(x.double())
         x = cur_pred
-
-    time_avg_tau_node = torch.mean(phi_tau[transition_phase:, component])
-    print("model mean: ", time_avg_tau_node)
+    time_avg_tau_node = torch.mean(phi_tau[:, component])
 
     for i, n in enumerate(n_val):
-        print(i)
-        temp = torch.zeros(n, 3)
+        temp = torch.zeros(n, 3).to(device)
+        x = init.to(device)
         # create data
         for j in range(n):
+            #print(i, j, x)
             temp[j] = x # shape [3]
+            #print(temp[j], "\n")
             cur_pred = model(x.double())
             x = cur_pred
 
         # compute time average at integration time = n
-        time_avg_n = torch.mean(temp[transition_phase:, component])
+        print("temp: ", temp[:, component])
+        temp_sum = torch.sum(temp[:, component])
+        print("sum: ", temp_sum)
+        time_avg_n = temp_sum / int(n)
+        print("time avg: ", time_avg_n)
+        #time_avg_n = torch.mean(temp[:, component])
+        #print("temp mean: ", time_avg_n)
 
         # calculate average and difference
+        print("diff: ", i, torch.abs(time_avg_n - time_avg_tau_node), "\n")
         diff_time_avg_node[i] = torch.abs(time_avg_n - time_avg_tau_node)
+    print("model mean: ", time_avg_tau_node)
+    print("sanity check node: ", diff_time_avg_node[-1], "\n")
 
 
     fig, ax = subplots()
-    ax.semilogy(diff_time_avg_node.detach().numpy()[transition_phase:], ".", ms = 10.0)
-    ax.semilogy(diff_time_avg_rk4.detach().numpy()[transition_phase:], ".", ms = 10.0)
+    ax.loglog(n_val.numpy(), diff_time_avg_node.detach().numpy(), ".", ms = 10.0)
+    ax.loglog(n_val.numpy(), diff_time_avg_rk4.detach().numpy(), ".", ms = 10.0)
     ax.grid(True)
     ax.set_xlabel(r"$n \times \delta t$", fontsize=20)
     ax.set_ylabel(r"log $|\bar z(\tau) - \bar z|$", fontsize=20)
@@ -133,20 +147,22 @@ def plot_time_average(init, time_step, optim_name, tau, component):
 
 def multi_step_pred_err(x, optim_name, time_step, integration_time, component):
     ''' Generate Plot for |φ_TRUE^t(x0) - φ_NODE^t(x0)| '''
+
     # Initialize Tensor
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    pred_traj = torch.zeros(integration_time, 3).to(device)
-    err = torch.zeros(integration_time, 3).to(device)
+    one_iter = int(1/time_step)
+    total_iter = one_iter * integration_time
+    pred_traj = torch.zeros(total_iter, 3).to(device)
     x = x.to(device)
 
     # Load the model
-    model = sol.create_NODE(device, n_nodes=3, T=time_step).double()
+    model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
     path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
 
     # Generate pred_traj, φ_NODE^t(x0) 
-    for i in range(integration_time):
+    for i in range(total_iter):
         pred_traj[i] = x # shape [3]
         cur_pred = model(x.double())
         x = cur_pred
@@ -156,15 +172,14 @@ def multi_step_pred_err(x, optim_name, time_step, integration_time, component):
     true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-9) 
     
     # Compute difference |φ_TRUE^t(x0) - φ_NODE^t(x0)|
-    for i in range(integration_time):
-        err[i] = torch.abs(pred_traj[i, component] - true_traj[i, component])
+    err = torch.abs(pred_traj[:, component] - true_traj[:, component])
 
     fig, ax = subplots()
-    plot_x = torch.linspace(0, integration_time * time_step, integration_time)
-    ax.semilogy(plot_x[100:], err.detach().cpu().numpy()[100:], ".", ms = 10.0)
+    plot_x = torch.arange(0, integration_time, step=time_step)
+    ax.semilogy(plot_x[100:], err.numpy()[100:], ".", ms = 5.0)
     ax.grid(True)
     ax.set_xlabel(r"$n * \delta t$", fontsize=20)
-    ax.set_ylabel(r"$|\phi_{TRUE}^t(x) - \phi_{NODE}^t(x)|$", fontsize=20)
+    ax.set_ylabel(r"$log |\phi_{TRUE}^t(x) - \phi_{NODE}^t(x)|$", fontsize=20)
     ax.xaxis.set_tick_params(labelsize=20)
     ax.yaxis.set_tick_params(labelsize=20)
     tight_layout()
@@ -296,7 +311,6 @@ def lyap_exps(chaotic, true_traj, iters, x0, time_step, optim_name, method):
 
         LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
 
-
     else:
         for i in range(0, iters):
 
@@ -346,14 +360,14 @@ if __name__ == '__main__':
     eps = 1e-6
 
     # compute lyapunov exponent
-    LE = lyap_exps(chaotic= True, iters=10**5, time_step= 1e-2, optim_name="AdamW", x0 = x, method="NODE")
-    print(LE)
+    # LE = lyap_exps(chaotic= True, iters=10**5, time_step= 1e-2, optim_name="AdamW", x0 = x, method="NODE")
+    # print(LE)
 
-    relative_error(optim_name="AdamW", time_step=0.01)
-
-    #plot_time_average(x, time_step=0.01, optim_name='AdamW', tau=300, component=2)
+    # relative_error(optim_name="AdamW", time_step=0.01)
+    fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
+    # plot_time_average(fixed_x, time_step=0.01, optim_name='AdamW', tau=200, component=2)
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
     #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
 
-    # multi_step_pred_err(x, optim_name="AdamW", time_step=0.01, integration_time=1000, component=0)
+    multi_step_pred_err(fixed_x, optim_name="AdamW", time_step=0.01, integration_time=100, component=0)

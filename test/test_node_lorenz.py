@@ -24,7 +24,7 @@ def plot_attractor(x0, x_multi_0, optim_name, num_epoch, lr, time_step):
         tran_n = 2000
 
     elif time_step == 5e-3:
-        iters = 2*(10**5)
+        iters = 2*(10**4)
         tran_n = 200
 
     elif time_step == 1e-2:
@@ -32,8 +32,8 @@ def plot_attractor(x0, x_multi_0, optim_name, num_epoch, lr, time_step):
         tran_n = 100
 
     real_time = iters * time_step
-    traj = sol.simulate(0, 120, x0, time_step)
-    dataset = sol.create_data(traj, n_train=10000, n_test=1800, n_nodes=3, n_trans=tran_n)
+    traj = sol.simulate(0, 180, x0, time_step)
+    dataset = sol.create_data(traj, n_train=10000, n_test=7500, n_nodes=3, n_trans=tran_n)
     longer_traj = sol.simulate(0, real_time, x_multi_0, time_step)
     multistep_traj = longer_traj[tran_n:]
 
@@ -59,7 +59,7 @@ def plot_attractor(x0, x_multi_0, optim_name, num_epoch, lr, time_step):
                                                                              epochs=num_epoch,
                                                                              lr=lr,
                                                                              time_step=time_step,
-                                                                             integration_time=t_n)
+                                                                             integration_time=real_time)
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
 
@@ -94,4 +94,4 @@ def plot_attractor(x0, x_multi_0, optim_name, num_epoch, lr, time_step):
 if __name__ == '__main__':
     x0 = torch.randn(3) #torch.Tensor([ -8., 7., 27.])
     x_multi_0 = torch.randn(3) # torch.Tensor([ 0.1, 0.1, 0.1])
-    plot_attractor(x0, x_multi_0, 'AdamW', 12000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step
+    plot_attractor(x0, x_multi_0, 'AdamW', 20000, 5e-4, 1e-2) # optimizer name, epoch, lr, time_step

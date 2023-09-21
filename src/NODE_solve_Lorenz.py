@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchdiffeq
+from scipy import stats
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib.pyplot import *
 
 from .NODE import ODEBlock, ODEFunc_Lorenz
 import sys
@@ -157,16 +158,16 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
     # pred_test n_test x 3
 
     if (iter+1) % 2000 == 0:
-        plt.figure(figsize=(20, 15))
-        ax = plt.axes(projection='3d')
+        figure(figsize=(20, 15))
+        ax = axes(projection='3d')
         ax.grid()
         ax.plot3D(Y[:, 0], Y[:, 1], Y[:, 2], 'gray', linewidth=4)
         
         z = pred_test[:, 2]
         ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
         ax.set_title(f"Iteration {iter+1}")
-        plt.savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-        plt.close("all")
+        savefig('expt_lorenz/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        close("all")
     
   return pred_test, test_loss
 
@@ -174,8 +175,8 @@ def evaluate(model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
 def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time):
 
-  print("multistep shape: ", true_traj.shape)
-  test_t = torch.linspace(0, 1, true_traj.shape[0]) # num_of_extrapolation_dataset
+  # num_of_extrapolation_dataset
+  test_t = torch.linspace(0, 1, true_traj.shape[0])
   pred_traj = torch.zeros(true_traj.shape[0], 3).to(device)
 
   with torch.no_grad():
@@ -186,7 +187,7 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
     X = true_traj[0].to(device)
 
     # calculating outputs 
-    for i in range(test_t.shape[0]):
+    for i in range(true_traj.shape[0]):
         pred_traj[i] = X # shape [3]
         X = torch.reshape(X, (1,3))
         cur_pred = model(X.double())
@@ -201,23 +202,23 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
     #plot the x, y, z
     if (iter+1) % 2000 == 0:
     # if (iter+1) == epochs:
-        plt.figure(figsize=(40, 15))
-        plt.title(f"Iteration {iter+1}")
-        plt.plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
-        plt.plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
-        plt.plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
+        figure(figsize=(40, 15))
+        title(f"Iteration {iter+1}")
+        plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
+        plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
+        plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
 
 
-        plt.plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-        plt.plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+        plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
+        plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
+        plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
 
         #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
-        plt.xlabel('t')
-        plt.ylabel('y')
-        plt.legend(loc='best')
-        plt.savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-        plt.close("all")   
+        xlabel('t')
+        ylabel('y')
+        legend(loc='best')
+        savefig('expt_lorenz/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        close("all")   
 
     # Plot Error ||pred - true||
     if (iter+1) == epochs:
@@ -231,12 +232,7 @@ def test_multistep(model, epochs, true_traj, device, iter, optimizer_name, lr, t
 def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time):
     '''plot error vs real time'''
 
-    plt.figure(figsize=(40, 15))
-    plt.title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
-    time_len = integration_time * time_step
-    print("time_len: ", time_len)
-
-    test_x = torch.linspace(0, time_len, Y.shape[0])
+    test_x = torch.linspace(0, integration_time, Y.shape[0])
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
@@ -247,13 +243,33 @@ def error_plot(device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, i
     err_csv = error_x.numpy()
     np.savetxt('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+ "error_hist_" + str(time_step) + ".csv", err_csv, delimiter=",")
 
-    # Save error plot in png file
-    plt.semilogy(test_x, error_x, linewidth=1)
-    plt.xlabel('Time')
-    plt.ylabel('Error')
-    plt.legend(['element x', 'element y', 'element z'])
-    plt.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    plt.close("all")
+    # Plot error
+    one_iter = int(1/time_step)
+    max_index = torch.argmax(error_x[0:one_iter])
+    print("max start index", max_index)
+    max_index_end = torch.argmax(error_x[0:one_iter*25])
+    print("max end index", max_index_end)
+
+    lin_x = test_x[max_index:max_index_end+1]
+    #lin_x = torch.arange(0, (max_index_end+1 - max_index))
+    print("new x", lin_x)
+    linout = stats.linregress(lin_x, error_x.detach().numpy()[max_index:max_index_end+1])
+    y_tangent = lin_x*linout[0] + test_x[max_index]
+    print("estimated slope: ", linout[0])
+    print("bias: ", linout[1])
+
+    fig, ax = subplots()
+    ax.semilogy(test_x, error_x.detach().numpy(), linewidth=2)
+    ax.plot(test_x[max_index:max_index_end+1], y_tangent)
+    ax.grid(True)
+    ax.set_xlabel(r"$n \times \delta t$", fontsize=10)
+    ax.set_ylabel(r"$log |x(t) - x\_pred(t)|$", fontsize=10)
+    ax.legend(['x component', 'approx slope'])
+    ax.xaxis.set_tick_params(labelsize=10)
+    ax.yaxis.set_tick_params(labelsize=10)
+    tight_layout()
+    ax.set_title(f"|x(t) - x_pred(t)| After {num_epoch} Epochs")
+    fig.savefig('expt_lorenz/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 
