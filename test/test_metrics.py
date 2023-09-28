@@ -9,9 +9,14 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
+from examples.Brusselator import *
 from examples.Lorenz import *
-from src import NODE_solve_Lorenz as sol
+from examples.Lorenz_periodic import *
+from examples.Sin import *
+from examples.Tent_map import *
+from src import NODE_solve as sol
 
+# TODO: Make sure that all of function starts from calling saved model. So that # it can also be used outside of training loop
 
 
 def relative_error(optim_name, time_step):
@@ -52,7 +57,7 @@ def relative_error(optim_name, time_step):
 
 
 
-def plot_time_average(init, time_step, optim_name, tau, component):
+def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
     '''plot |avg(z_tau) - avg(z_t)|'''
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -64,8 +69,8 @@ def plot_time_average(init, time_step, optim_name, tau, component):
     diff_time_avg_node = torch.zeros(n_val.shape)
 
     # Load the saved model
-    model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
-    path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+    model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=3, n_hidden=64, T=time_step).double()
+    path = "expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
 
@@ -79,7 +84,6 @@ def plot_time_average(init, time_step, optim_name, tau, component):
         # create data
         t = torch.arange(0, n, time_step)
         sol_n = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8) 
-        print("sol")
 
         # compute time average at integration time = n
         time_avg_rk4 = torch.mean(sol_n[:, component])
@@ -130,11 +134,15 @@ def plot_time_average(init, time_step, optim_name, tau, component):
 
 
     fig, ax = subplots()
-    ax.loglog(n_val.numpy(), diff_time_avg_node.detach().numpy(), ".", ms = 10.0)
-    ax.loglog(n_val.numpy(), diff_time_avg_rk4.detach().numpy(), ".", ms = 10.0)
+    n_val_log = np.log(n_val.numpy())
+    y1 = diff_time_avg_node.detach().numpy()
+    y2 = diff_time_avg_rk4.detach().numpy()
+    ax.plot(n_val_log, np.log(y1, out=np.zeros_like(y1), where=(y1!=0)), ".", ms = 10.0)
+    ax.plot(n_val_log, np.log(y2, out=np.zeros_like(y2), where=(y2!=0)), ".", ms = 10.0)
     ax.grid(True)
     ax.set_xlabel(r"$n \times \delta t$", fontsize=20)
     ax.set_ylabel(r"log $|\bar z(\tau) - \bar z|$", fontsize=20)
+    ax.set_title(r"Log-log Plot for Time Average Convergence")
     ax.legend(['NODE', 'rk4'])
     ax.xaxis.set_tick_params(labelsize=20)
     ax.yaxis.set_tick_params(labelsize=20)
@@ -146,7 +154,7 @@ def plot_time_average(init, time_step, optim_name, tau, component):
 
 
 def multi_step_pred_err(x, optim_name, time_step, integration_time, component):
-    ''' Generate Plot for |φ_TRUE^t(x0) - φ_NODE^t(x0)| '''
+    ''' Generate Plot for |phi_TRUE^t(x0) - phi_NODE^t(x0)| '''
 
     # Initialize Tensor
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -262,35 +270,27 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
 
 
 
-def lyap_exps(chaotic, true_traj, iters, x0, time_step, optim_name, method):
+def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method):
     ''' Compute Lyapunov Exponents '''
 
-    #initial parameters of lorenz
-    if chaotic == True:
-        sigma = 10
-        r = 28
-        b = 8/3
-    else:
-        sigma = 10
-        r = 350
-        b = 8/3
+    # Initialize parameter
+    dyn_sys_func = dyn_sys_info[0]
+    dim = dyn_sys_info[1]
 
     # QR Method where U = tangent vector, V = regular system
-    U = torch.eye(3)
-    lyap = [] #empty list to store the lengths of the orthogonal axes
-    trial = []
+    U = torch.eye(dim).double()
+    lyap_exp = [] #empty list to store the lengths of the orthogonal axes
 
     real_time = iters * time_step
     t_eval_point = torch.linspace(0, time_step, 2)
     tran = 0
-    I = np.eye(3)
 
     if method == "NODE":
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # load the saved model
-        model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
-        path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
@@ -299,36 +299,37 @@ def lyap_exps(chaotic, true_traj, iters, x0, time_step, optim_name, method):
             #update x0
             x0 = true_traj[i].to(device).double()
 
-            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
             cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
+            if i % 10000 == 0:
+                print("jacobian_node", cur_J)
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())
 
-            lyap.append(np.log(abs(R.diagonal())))
+            lyap_exp.append(np.log(abs(R.diagonal())))
             U = torch.tensor(Q) #new axes after iteration
 
-        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+        LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
     else:
         for i in range(0, iters):
 
-            x0 = true_traj[i] #update x0
+            #update x0
+            x0 = true_traj[i].double()
 
-            #J = np.matmul(I + dt * Jacobian_Matrix(x0, sigma, r, b), U)
-            # if iters % 1000 == 0:
-            #     print("jacobian_rk4", F.jacobian(lambda x: torchdiffeq.odeint(func.lorenz, x, t_eval_point, method=method), x0)[1])
-
-            J = torch.matmul(F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method=method), x0)[1], U)
+            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
+            if i % 10000 == 0:
+                print("jacobian_rk4", cur_J)
+            J = torch.matmul(cur_J, U)
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())
 
-            lyap.append(np.log(abs(R.diagonal())))
-            U = torch.tensor(Q) #new axes after iteration
+            lyap_exp.append(np.log(abs(R.diagonal())))
+            U = torch.tensor(Q).double() #new axes after iteration
 
-        LE = [sum([lyap[i][j] for i in range(iters)]) / (real_time) for j in range(3)]
+        LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
     
     return torch.tensor(LE)
 
@@ -360,14 +361,22 @@ if __name__ == '__main__':
     eps = 1e-6
 
     # compute lyapunov exponent
-    # LE = lyap_exps(chaotic= True, iters=10**5, time_step= 1e-2, optim_name="AdamW", x0 = x, method="NODE")
-    # print(LE)
+
+    t_eval_point = torch.arange(0,500,1e-2)
+    true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) 
+
+    # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
+    # LE_node = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj = true_traj, iters=10**4, time_step= 1e-2, optim_name="AdamW", x0 = x, method="NODE")
+    # print("NODE: ", LE_node)
+    
+    LE_rk4 = lyap_exps("lorenz", [lorenz, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
+    print("rk4 LE: ", LE_rk4)
 
     # relative_error(optim_name="AdamW", time_step=0.01)
-    fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
-    # plot_time_average(fixed_x, time_step=0.01, optim_name='AdamW', tau=200, component=2)
+    # fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
+    # plot_time_average(x, dyn_sys="lorenz_periodic", time_step=0.01, optim_name='AdamW', tau=100, component=2)
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
     #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
 
-    multi_step_pred_err(fixed_x, optim_name="AdamW", time_step=0.01, integration_time=100, component=0)
+    # multi_step_pred_err(fixed_x, optim_name="AdamW", time_step=0.01, integration_time=100, component=0)

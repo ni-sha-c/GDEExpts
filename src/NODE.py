@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchdiffeq
-from .KAF import KAF
+# from .KAF import KAF
 
 class ODEBlock(nn.Module):
     def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=False):
@@ -77,17 +77,23 @@ class ODEFunc_Brusselator (nn.Module):
   def __init__( self , y_dim=2 , n_hidden=4) :
     super(ODEFunc_Brusselator , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, 64),
-      nn.Tanh(),
-      nn.Linear(64, 512),
-      nn.Tanh(),
-      nn.Linear(512, 512),
-      nn.Tanh(),
-      nn.Linear(512, 256),
-      nn.Tanh(),
-      nn.Linear(256, 64),
-      nn.Tanh(),
-      nn.Linear(64, y_dim)
+      nn.Linear(y_dim, 40*9),
+      nn.GELU(),
+      nn.Linear(40*9, 40*9),
+      nn.GELU(),
+      nn.Linear(40*9, y_dim)
+
+      # nn.Linear(y_dim, 64),
+      # nn.Tanh(),
+      # nn.Linear(64, 512),
+      # nn.Tanh(),
+      # nn.Linear(512, 512),
+      # nn.Tanh(),
+      # nn.Linear(512, 256),
+      # nn.Tanh(),
+      # nn.Linear(256, 64),
+      # nn.Tanh(),
+      # nn.Linear(64, y_dim)
     )
 
   def forward(self , t, y): 
@@ -101,78 +107,14 @@ class ODEFunc_Lorenz (nn.Module):
   def __init__( self , y_dim=3 , n_hidden=4) :
     super(ODEFunc_Lorenz , self ).__init__()
 
-    # Define the fully connected layer
-    self.fc = nn.Linear(n_hidden, y_dim)
-
     self.net = nn.Sequential(
 
       nn.Linear(y_dim, 32*9),
-      nn.SiLU(),
+      nn.GELU(),
       nn.Linear(32*9, 64*9),
-      nn.SiLU(),
+      nn.GELU(),
       nn.Linear(64*9, y_dim)
 
-
-
-      # nn.Linear(y_dim, 32*9),
-      # nn.SiLU(),
-      # nn.Linear(32*9, 64*9),
-      # nn.SiLU(),
-      # nn.Linear(64*9, 128*9),
-      # nn.SiLU(),
-      # nn.Linear(128*9, 256*9),
-      # nn.SiLU(),
-      # nn.Linear(256*9, 128*9),
-      # nn.SiLU(),
-      # nn.Linear(128*9, 64*9),
-      # nn.SiLU(),
-      # nn.Linear(64*9, 32*9),
-      # nn.SiLU(),
-      # nn.Linear(32*9, y_dim)
-
-      
-      # nn.Linear(y_dim, 256),
-      # nn.SiLU(),
-      # nn.Linear(256, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 1024),
-      # nn.SiLU(),
-      # nn.Linear(1024, 2048),
-      # nn.SiLU(),
-      # nn.Linear(2048, 1024),
-      # nn.SiLU(),
-      # nn.Linear(1024, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 256),
-      # nn.SiLU(),
-      # nn.Linear(256, y_dim)
-
-      # nn.Linear(y_dim, 256),
-      # nn.SiLU(),
-      # nn.Linear(256, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 512), 
-      # nn.SiLU(),
-      # nn.Linear(512, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 512), 
-      # nn.SiLU(),
-      # nn.Linear(512, 1024),
-      # nn.SiLU(),
-      # nn.Linear(1024, 1024), 
-      # nn.SiLU(),
-      # # performed better with 
-      # nn.Linear(1024, 2048), # added
-      # nn.SiLU(),
-      # nn.Linear(2048, 1024), # added
-      # nn.SiLU(),
-      # nn.Linear(1024, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 512),
-      # nn.SiLU(),
-      # nn.Linear(512, 256),
-      # nn.SiLU(),
-      # nn.Linear(256, y_dim)
 
       # other activation function lists:
       # nn.SiLU(),
@@ -194,11 +136,20 @@ class ODEFunc_Lorenz_periodic (nn.Module):
     super(ODEFunc_Lorenz_periodic , self ).__init__()
     self.net = nn.Sequential(
 
-      nn.Linear(y_dim, 16*9),
-      nn.SiLU(),
-      nn.Linear(16*9, 32*9),
-      nn.SiLU(),
-      nn.Linear(32*9, y_dim)
+      # nn.Linear(y_dim, 40*9),
+      # nn.GELU(),
+      # nn.Linear(40*9, 20*9),
+      # nn.GELU(),
+      # nn.Linear(20*9, 20*9),
+      # nn.GELU(),
+      # nn.Linear(20*9, y_dim)
+
+
+      nn.Linear(y_dim, 64*9),
+      nn.GELU(),
+      nn.Linear(64*9, 64*9),
+      nn.GELU(),
+      nn.Linear(64*9, y_dim)
 
       # nn.Linear(y_dim, 9),
       # nn.SiLU(),
