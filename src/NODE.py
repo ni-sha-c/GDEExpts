@@ -108,21 +108,18 @@ class ODEFunc_Lorenz (nn.Module):
     super(ODEFunc_Lorenz , self ).__init__()
 
     self.net = nn.Sequential(
-
-      nn.Linear(y_dim, 32*9),
+      nn.Linear(3, 32*9),
       nn.GELU(),
       nn.Linear(32*9, 64*9),
       nn.GELU(),
-      nn.Linear(64*9, y_dim)
-
-
+      nn.Linear(64*9, 3)
       # other activation function lists:
       # nn.SiLU(),
       # KAF(256),
     )
 
   def forward(self , t, y): 
-    # #torch.set_grad_enabled(True) 
+    #torch.set_grad_enabled(True) 
     res = self.net(y)
     # #print("at t: ", t, res)
 

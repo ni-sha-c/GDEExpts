@@ -42,6 +42,8 @@ if __name__ == '__main__':
     parser.add_argument("--num_test", type=int, default=7500)
     parser.add_argument("--tran_state", type=int, default=100)
     parser.add_argument("--iters", type=int, default=5*(10**4))
+    parser.add_argument("--minibatch", type=bool, default=False)
+    parser.add_argument("--batch_size", type=int, default=500)
     parser.add_argument("--optim_name", default="AdamW", choices=["AdamW", "Adam", "RMSprop", "SGD"])
     parser.add_argument("--dyn_sys", default="lorenz", choices=DYNSYS_MAP.keys())
 
@@ -69,10 +71,9 @@ if __name__ == '__main__':
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
-    optimizer = sol.define_optimizer(args.optim_name, m, args.lr, args.weight_decay)
      
     # Train the model, return node
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist = sol.train(args.dyn_sys, m, device, dataset, multistep_traj, optimizer, criterion, args.num_epoch, args.lr, args.time_step, real_time, args.tran_state)
+    pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(args.dyn_sys, m, device, dataset, multistep_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.tran_state, minibatch=args.minibatch, batch_size=args.batch_size)
 
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])

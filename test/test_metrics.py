@@ -51,7 +51,7 @@ def relative_error(optim_name, time_step):
     ax.xaxis.set_tick_params(labelsize=20)
     ax.yaxis.set_tick_params(labelsize=20)
     tight_layout()
-    fig.savefig("relative_error.png")
+    fig.savefig("../plot/relative_error.png")
 
     return
 
@@ -147,51 +147,7 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
     ax.xaxis.set_tick_params(labelsize=20)
     ax.yaxis.set_tick_params(labelsize=20)
     tight_layout()
-    fig.savefig("time_avg_convergence.png")
-
-    return
-
-
-
-def multi_step_pred_err(x, optim_name, time_step, integration_time, component):
-    ''' Generate Plot for |phi_TRUE^t(x0) - phi_NODE^t(x0)| '''
-
-    # Initialize Tensor
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    one_iter = int(1/time_step)
-    total_iter = one_iter * integration_time
-    pred_traj = torch.zeros(total_iter, 3).to(device)
-    x = x.to(device)
-
-    # Load the model
-    model = sol.create_NODE(device, n_nodes=3, n_hidden=64, T=time_step).double()
-    path = "expt_lorenz/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
-    model.load_state_dict(torch.load(path))
-    model.eval()
-
-    # Generate pred_traj, φ_NODE^t(x0) 
-    for i in range(total_iter):
-        pred_traj[i] = x # shape [3]
-        cur_pred = model(x.double())
-        x = cur_pred
-
-    # Compute true_traj, φ_TRUE^t(x0)
-    t_eval_point = torch.arange(0, integration_time, step=time_step).to(device)
-    true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-9) 
-    
-    # Compute difference |φ_TRUE^t(x0) - φ_NODE^t(x0)|
-    err = torch.abs(pred_traj[:, component] - true_traj[:, component])
-
-    fig, ax = subplots()
-    plot_x = torch.arange(0, integration_time, step=time_step)
-    ax.semilogy(plot_x[100:], err.numpy()[100:], ".", ms = 5.0)
-    ax.grid(True)
-    ax.set_xlabel(r"$n * \delta t$", fontsize=20)
-    ax.set_ylabel(r"$log |\phi_{TRUE}^t(x) - \phi_{NODE}^t(x)|$", fontsize=20)
-    ax.xaxis.set_tick_params(labelsize=20)
-    ax.yaxis.set_tick_params(labelsize=20)
-    tight_layout()
-    fig.savefig("multi_step_error_"+str(time_step) +".png")
+    fig.savefig("../plot/time_avg_convergence.png")
 
     return
 
@@ -264,7 +220,7 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
     ax.xaxis.set_tick_params(labelsize=20)
     ax.yaxis.set_tick_params(labelsize=20)
     tight_layout()
-    fig.savefig(str(method) + "_perturbed_multi_step_error.png")
+    fig.savefig("../plot/"+ str(method) + "_perturbed_multi_step_error.png")
 
     return
 
@@ -300,9 +256,9 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             x0 = true_traj[i].to(device).double()
 
             cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
-            if i % 10000 == 0:
-                print("jacobian_node", cur_J)
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
+            if i % 10000 == 0:
+                print("jacobian_node", J)
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())
@@ -319,9 +275,9 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             x0 = true_traj[i].double()
 
             cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
-            if i % 10000 == 0:
-                print("jacobian_rk4", cur_J)
             J = torch.matmul(cur_J, U)
+            if i % 10000 == 0:
+                print("jacobian_rk4", J)
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())

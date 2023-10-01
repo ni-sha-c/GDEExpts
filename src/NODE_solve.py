@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torchdiffeq
 from scipy import stats
@@ -102,36 +103,147 @@ def define_optimizer(optim_name, model, lr, weight_decay):
 
 
 
-def train(dyn_sys, model, device, dataset, true_t, optimizer, criterion, epochs, lr, time_step, real_time, tran_state):
+def create_iterables(dataset, batch_size):
+    X, Y, X_test, Y_test = dataset
 
-    # return loss, test_loss, model_final
-    num_grad_steps = 0
+    # Dataloader
+    train_data = torch.utils.data.TensorDataset(X, Y)
+    test_data = torch.utils.data.TensorDataset(X_test, Y_test)
 
-    pred_train = []
-    true_train = []
-    loss_hist = []
-    test_loss_hist = []
-    train_loss = 0
-    optim_name = 'AdamW'
+    # Data iterables
+    train_iter = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    test_iter = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
+
+    return train_iter, test_iter
+
+
+def get_batch(device, batch_time, data_size, batch_size, true_y, t):
+    ''' func: transform trajectory into mini-batch of size T x batch_size x d
+        param: batch_time = T
+               batch_size = M
+
+    Adapted from https://github.com/rtqichen/torchdiffeq/blob/master/examples/ode_demo.py '''
+
+    s = torch.from_numpy(np.arange(data_size - batch_time, dtype=np.int64)[:batch_size])
+
+    # Define a set of M starting points
+    batch_y0 = true_y[s]  # (M, D)
+    # Define batch time
+    batch_t = t[:batch_time]  # (T)
+    # Generate batch from M different stating points
+    batch_y = torch.stack([true_y[s + i] for i in range(batch_time)], dim=0)  # (T, M, D)
+    return batch_y0.to(device), batch_t.to(device), batch_y.to(device)
+
+
+
+# def train(dyn_sys, model, device, dataset, true_t, optimizer, criterion, epochs, lr, time_step, real_time, tran_state):
+
+#     # return loss, test_loss, model_final
+#     num_grad_steps = 0
+
+#     pred_train = []
+#     true_train = []
+#     loss_hist = []
+#     test_loss_hist = []
+#     train_loss = 0
+#     optim_name = 'AdamW'
+#     X, Y, X_test, Y_test = dataset
+#     batch_time = 2
+#     data_size = int(100/0.01)
+#     batch_size = 9500
+#     t = torch.arange(0.0, 100.0, 0.01).to(device)
+#     y0 = torch.randn(3).to(device)
+#     true_y = torchdiffeq.odeint(lorenz, y0, t, method='rk4', rtol=1e-8)
+
+#     for i in range(epochs): # looping over epochs
+#         model.train()
+#         model.double()
+
+#         optimizer.zero_grad()
+#         batch_y0, batch_t, batch_y = get_batch(device, batch_time, data_size, batch_size, true_y, t)
+
+#         #print(batch_y0[:5]) #[batch_size, dim]
+#         #print(batch_t[:5]) #[batch_t]
+#         #print(batch_y[:5]) #[batch_t, batch_size, dim]
+#         func = ODEFunc_Lorenz().to(device)
+#         y_pred = torchdiffeq.odeint(func, batch_y0, batch_t, method='rk4').to(device)
+
+#         loss = criterion(y_pred, batch_y) #(y_true - y_pred) % 2 * pi
+#         train_loss = loss.item()
+#         loss.backward()
+#         optimizer.step()
+
+#         pred_train.append(y_pred.detach().cpu().numpy())
+#         true_train.append(batch_y.detach().cpu().numpy())
+#         loss_hist.append(train_loss)
+#         print(i, train_loss)
+
+#         ##### test one_step #####
+#         #pred_test, test_loss = evaluate(dyn_sys, model, X_test, Y_test, device, criterion, i, optim_name)
+#         #test_loss_hist.append(test_loss)
+
+#         ##### test multi_step #####
+#         #if (i+1) % 2000 == 0:
+#         #if (i+1) == epochs:
+#         #    test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+        
+
+#     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+
+def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
+
+    # Initialize
+    pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
+    optimizer = define_optimizer(optim_name, model, lr, weight_decay)
     X, Y, X_test, Y_test = dataset
 
     for i in range(epochs): # looping over epochs
         model.train()
         model.double()
 
-        X = X.to(device)
-        Y = Y.to(device)
+        if minibatch == True:
+            train_iter, test_iter = create_iterables(dataset, batch_size=batch_size)
+            y_pred = torch.zeros(len(train_iter), batch_size, 3)
+            y_true = torch.zeros(len(train_iter), batch_size, 3)
+            k = 0
 
-        y_pred = model(X).to(device)
+            for xk, yk in train_iter:
+                xk = xk.to(device) # [batch size,3]
+                yk = yk.to(device)
 
-        optimizer.zero_grad()
-        loss = criterion(y_pred, Y) #(y_true - y_pred) % 2 * pi
-        train_loss = loss.item()
-        loss.backward()
-        optimizer.step()
+                output = model(xk)
 
-        pred_train.append(y_pred.detach().cpu().numpy())
-        true_train.append(Y.detach().cpu().numpy())
+                # save predicted node feature for analysis
+                y_pred[k] = output
+                y_true[k] = yk
+                k += 1
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, y_true)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(y_true.detach().cpu().numpy())
+
+        elif minibatch == False:
+            X = X.to(device)
+            Y = Y.to(device)
+
+            y_pred = model(X).to(device)
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, Y)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(Y.detach().cpu().numpy())
+        
         loss_hist.append(train_loss)
         print(i, train_loss)
 
@@ -140,10 +252,8 @@ def train(dyn_sys, model, device, dataset, true_t, optimizer, criterion, epochs,
         test_loss_hist.append(test_loss)
 
         ##### test multi_step #####
-        #if (i+1) % 2000 == 0:
         if (i+1) == epochs:
-            test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
-        
+           test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
