@@ -142,11 +142,13 @@ class ODEFunc_Lorenz_periodic (nn.Module):
       # nn.Linear(20*9, y_dim)
 
 
-      nn.Linear(y_dim, 64*9),
+      nn.Linear(y_dim, 40*9),
       nn.GELU(),
-      nn.Linear(64*9, 64*9),
+      nn.Linear(40*9, 40*9),
       nn.GELU(),
-      nn.Linear(64*9, y_dim)
+      nn.Linear(40*9, 40*9),
+      nn.GELU(),
+      nn.Linear(40*9, y_dim)
 
       # nn.Linear(y_dim, 9),
       # nn.SiLU(),

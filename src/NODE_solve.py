@@ -7,7 +7,7 @@ from scipy import stats
 import numpy as np
 from matplotlib.pyplot import *
 
-from .NODE import *
+from NODE import *
 import sys
 sys.path.append('..')
 from examples.Brusselator import *
@@ -117,78 +117,6 @@ def create_iterables(dataset, batch_size):
     return train_iter, test_iter
 
 
-def get_batch(device, batch_time, data_size, batch_size, true_y, t):
-    ''' func: transform trajectory into mini-batch of size T x batch_size x d
-        param: batch_time = T
-               batch_size = M
-
-    Adapted from https://github.com/rtqichen/torchdiffeq/blob/master/examples/ode_demo.py '''
-
-    s = torch.from_numpy(np.arange(data_size - batch_time, dtype=np.int64)[:batch_size])
-
-    # Define a set of M starting points
-    batch_y0 = true_y[s]  # (M, D)
-    # Define batch time
-    batch_t = t[:batch_time]  # (T)
-    # Generate batch from M different stating points
-    batch_y = torch.stack([true_y[s + i] for i in range(batch_time)], dim=0)  # (T, M, D)
-    return batch_y0.to(device), batch_t.to(device), batch_y.to(device)
-
-
-
-# def train(dyn_sys, model, device, dataset, true_t, optimizer, criterion, epochs, lr, time_step, real_time, tran_state):
-
-#     # return loss, test_loss, model_final
-#     num_grad_steps = 0
-
-#     pred_train = []
-#     true_train = []
-#     loss_hist = []
-#     test_loss_hist = []
-#     train_loss = 0
-#     optim_name = 'AdamW'
-#     X, Y, X_test, Y_test = dataset
-#     batch_time = 2
-#     data_size = int(100/0.01)
-#     batch_size = 9500
-#     t = torch.arange(0.0, 100.0, 0.01).to(device)
-#     y0 = torch.randn(3).to(device)
-#     true_y = torchdiffeq.odeint(lorenz, y0, t, method='rk4', rtol=1e-8)
-
-#     for i in range(epochs): # looping over epochs
-#         model.train()
-#         model.double()
-
-#         optimizer.zero_grad()
-#         batch_y0, batch_t, batch_y = get_batch(device, batch_time, data_size, batch_size, true_y, t)
-
-#         #print(batch_y0[:5]) #[batch_size, dim]
-#         #print(batch_t[:5]) #[batch_t]
-#         #print(batch_y[:5]) #[batch_t, batch_size, dim]
-#         func = ODEFunc_Lorenz().to(device)
-#         y_pred = torchdiffeq.odeint(func, batch_y0, batch_t, method='rk4').to(device)
-
-#         loss = criterion(y_pred, batch_y) #(y_true - y_pred) % 2 * pi
-#         train_loss = loss.item()
-#         loss.backward()
-#         optimizer.step()
-
-#         pred_train.append(y_pred.detach().cpu().numpy())
-#         true_train.append(batch_y.detach().cpu().numpy())
-#         loss_hist.append(train_loss)
-#         print(i, train_loss)
-
-#         ##### test one_step #####
-#         #pred_test, test_loss = evaluate(dyn_sys, model, X_test, Y_test, device, criterion, i, optim_name)
-#         #test_loss_hist.append(test_loss)
-
-#         ##### test multi_step #####
-#         #if (i+1) % 2000 == 0:
-#         #if (i+1) == epochs:
-#         #    test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
-        
-
-#     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
 def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
 
@@ -404,7 +332,7 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     ax.yaxis.set_tick_params(labelsize=10)
     tight_layout()
     ax.set_title(r"\log |x(t) - x_pred(t)| After {num_epoch} Epochs")
-    fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=1200, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 

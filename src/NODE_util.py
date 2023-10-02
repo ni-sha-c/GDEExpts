@@ -1,5 +1,136 @@
-import matplotlib.pyplot as plt
+from matplotlib.pyplot import *
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+from NODE_solve import *
+from examples.Brusselator import *
+from examples.Lorenz import *
+from examples.Lorenz_periodic import *
+from examples.Sin import *
+from examples.Tent_map import *
+
+
+def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_time):
+    ''' func: plot true phase or simulated phase for 3D dynamic system 
+        param:  n = num of time step size
+                data = simulated or true trajectory '''
+
+    DYNSYS_MAP = {'sin' : [sin, 1],
+                  'tent_map' : [tent_map, 1],
+                  'brusselator' : [brusselator, 2],
+                  'lorenz_periodic' : [lorenz_periodic, 3],
+                  'lorenz' : [lorenz, 3]}
+
+    # If want to plot true trajectory,
+    if NODE == False:
+        dyn_system, dim = DYNSYS_MAP[dyn_sys]
+        ti, tf = integration_time
+        init_state = torch.randn(dim)
+        simulate(dyn_system, ti, tf, init_state, time_step)
+        print("Finished simulating")
+
+        path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'phase_plot_' + str(time_step) +'.pdf'
+    elif NODE == True:
+        path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'NODE_phase_plot_' + str(time_step) +'.pdf'
+
+    fig, (ax1, ax2, ax3) = subplots(1, 3, figsize=(18,6))
+    my_range = np.linspace(-1,1,n)
+    x = data[:, 0]
+    y = data[:, 1]
+    z = data[:, 2]
+
+    ax1.scatter(x, y, c=z, s = 2, cmap='plasma', alpha=0.5)
+    ax1.set_xlabel("X-axis")
+    ax1.set_ylabel("Y-axis")
+
+    ax2.scatter(x, z, c=z, s = 2 ,cmap='plasma', alpha=0.5)
+    ax2.set_xlabel("X-axis")
+    ax2.set_ylabel("Z-axis")
+
+    ax3.scatter(y, z, c=z, s = 2 ,cmap='plasma', alpha=0.5)
+    ax3.set_xlabel("Y-axis")
+    ax3.set_ylabel("Z-axis")
+
+    fig.savefig(path, format='pdf', dpi=1200)
+
+    return
+
+def lorenz_system(x, y, z, rho, beta=8/3, sigma=10.0):
+    x_dot = sigma * (y - x)
+    y_dot = x * (rho - z) - y
+    z_dot = x * y - beta * z
+    return x_dot, y_dot, z_dot
+
+def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
+    ''' func: plot bifurcation plot for 3D system 
+        param:  r_range = range of rho
+                dr = step size of rho '''
+
+    r = np.arange(20, r_range, dr)  # parameter range
+    dt = 0.001  # time step
+    t = np.arange(0, 50, dt)  # time range
+
+    # initialize solution arrays
+    xs = np.empty(len(t) + 1)
+    ys = np.empty(len(t) + 1)
+    zs = np.empty(len(t) + 1)
+
+    # initial values x0,y0,z0 for the system
+    xs[0], ys[0], zs[0] = (1, 1, 1)
+
+
+    # Save the plot points coordinates and plot the with a single call to plt.plot
+    # instead of plotting them one at a time, as it's much more efficient
+    r_maxes, z_maxes, r_mins, z_mins = ([] for i in range(4))
+
+    for R in r:
+        # Print something to show everything is running
+        print(f"{R=:.2f}")
+        for i in range(len(t)):
+            # approximate numerical solutions to system
+            x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
+            xs[i + 1] = xs[i] + (x_dot * dt)
+            ys[i + 1] = ys[i] + (y_dot * dt)
+            zs[i + 1] = zs[i] + (z_dot * dt)
+        # calculate and save the peak values of the z solution
+        for i in range(1, len(zs) - 1):
+            # save the local maxima
+            if zs[i - 1] < zs[i] and zs[i] > zs[i + 1]:
+                r_maxes.append(R)
+                z_maxes.append(zs[i])
+            # save the local minima
+            elif zs[i - 1] > zs[i] and zs[i] < zs[i + 1]:
+                r_mins.append(R)
+                z_mins.append(zs[i])
+
+        # "use final values from one run as initial conditions for the next to stay near the attractor"
+        xs[0], ys[0], zs[0] = xs[i], ys[i], zs[i]
+
+
+    scatter(r_maxes, z_maxes, color="black", s=1, alpha=0.4)
+    scatter(r_mins, z_mins, color="red", s=1, alpha=0.4)
+
+    xlim(0, r_range)
+    ylim(0, 300)
+
+    path = '../plot/'+'bifurcation_plot'+'.pdf'
+    savefig(path, format='pdf', dpi=1200)
+    return
+
+def LE_diff_rho(r_range, dr=0.1):
+    ''' func: save csv file that stores LE of different rho and create plot '''
+    for i in 
+    LE_rk4 = lyap_exps(, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4")
+    print("rk4 LE: ", LE_rk4)
+
+    # Compute || LE_{NODE} - LE_{rk4} ||
+    norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
+    return
+
+def test_error_diff_rho():
+    ''' func: save csv file that stores test error of different rho and create plot '''
+
+    return
+
 
 def plot_traj_lorenz(X, optim_name, time, periodic):
     '''Plot trajectory of lorenz training data'''
@@ -41,6 +172,7 @@ def plot_phase_space_lorenz(pred_test, Y_test, optim_name, lr, time, periodic):
     plt.close("all")
 
     return
+
 
 
 def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, periodic):
@@ -87,3 +219,11 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
     plt.close("all")
 
     return
+
+if __name__ == '__main__':
+    traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
+    n = len(traj)
+    print(n)
+    #plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", False, [0, 180])
+
+    lorenz_bifurcation_plot(0.01, 200)
