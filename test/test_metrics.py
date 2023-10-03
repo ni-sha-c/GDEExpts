@@ -9,12 +9,12 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import sys
 sys.path.append('..')
 
-from examples.Brusselator import *
-from examples.Lorenz import *
-from examples.Lorenz_periodic import *
-from examples.Sin import *
-from examples.Tent_map import *
-from src import NODE_solve as sol
+# from examples.Brusselator import *
+# from examples.Lorenz import *
+# from examples.Lorenz_periodic import *
+# from examples.Sin import *
+# from examples.Tent_map import *
+# from src import NODE_solve as sol
 
 # TODO: Make sure that all of function starts from calling saved model. So that # it can also be used outside of training loop
 
@@ -273,11 +273,10 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
             #update x0
             x0 = true_traj[i].double()
-
             cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
             J = torch.matmul(cur_J, U)
-            if i % 10000 == 0:
-                print("jacobian_rk4", J)
+            #if i % 10000 == 0:
+            #    print("jacobian_rk4", J)
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())

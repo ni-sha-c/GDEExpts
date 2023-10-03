@@ -7,7 +7,7 @@ from scipy import stats
 import numpy as np
 from matplotlib.pyplot import *
 
-from NODE import *
+from .NODE import *
 import sys
 sys.path.append('..')
 from examples.Brusselator import *

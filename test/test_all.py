@@ -49,8 +49,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     dyn_sys_info = DYNSYS_MAP[args.dyn_sys]
-    dyn_sys_func = dyn_sys_info[0]
-    dim = dyn_sys_info[1]
+    dyn_sys_func, dim = dyn_sys_info
     print("args: ", args)
     print("dyn_sys_func: ", dyn_sys_func)
 

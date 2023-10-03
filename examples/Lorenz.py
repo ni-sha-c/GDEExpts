@@ -1,14 +1,14 @@
 import torch
 from numpy import *
 
-def lorenz(t, u):
+def lorenz(t, u, rho=28.0):
     """ Lorenz chaotic differential equation: du/dt = f(t, u)
     t: time T to evaluate system
     u: state vector [x, y, z] 
     return: new state vector in shape of [3]"""
 
     sigma = 10.0
-    rho = 28.0
+    #rho = 28.0
     beta = 8/3
 
     res = torch.stack([
