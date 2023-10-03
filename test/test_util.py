@@ -77,8 +77,16 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
         param:  r_range = range of rho
                 dr = step size of rho '''
     # should modify more!!
+    # r_H = 24.74 when sigma = 10, beta = 8/3
 
-    r = np.arange(20, r_range, dr)  # parameter range
+    # r < 1
+    # 1 < r < 24.74
+    # r = 24.74
+    # r > 24.74
+
+    # line at 24.74
+
+    r = np.arange(0, r_range, dr)  # parameter range
     dt = 0.001  # time step
     t = np.arange(0, 50, dt)  # time range
 
@@ -117,16 +125,39 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
         # "use final values from one run as initial conditions for the next to stay near the attractor"
         xs[0], ys[0], zs[0] = xs[i], ys[i], zs[i]
 
-    fig = subplot(figsize=(18,6))
-    scatter(r_maxes, z_maxes, color="black", s=1, alpha=0.4)
-    scatter(r_mins, z_mins, color="red", s=1, alpha=0.4)
+    fig, ax = subplots(figsize=(18,6))
+    ax.scatter(r_maxes, z_maxes, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
+    ax.scatter(r_mins, z_mins, color="lightgreen", s=1, alpha=0.4)
+    # # Calculate the bifurcation plot values for r = 24.74
+    # Plot the bifurcation plot values for r = 24.74 as a dashed line
+    ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
     xlim(0, r_range)
     ylim(0, 300)
 
     path = '../plot/'+'bifurcation_plot'+'.pdf'
-    fig.savefig(path, format='pdf', dpi=1200)
+    fig.savefig(path, format='pdf')
     return
 
+
+def plot_3d_trajectory(Y, pred_test, comparison=False):
+    figure(figsize=(20, 15))
+    ax = axes(projection='3d')
+    ax.grid()
+    ax.plot3D(Y[:, 0], Y[:, 1], Y[:, 2], 'gray', linewidth=4)
+
+    if comparison == True:
+        z = pred_test[:, 2]
+        ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
+        ax.set_title(f"Iteration {iter+1}")
+        savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        close("all")
+    else:
+        ax.set_title(f"Iteration {iter+1}")
+        savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        close("all")
+
+
+    return
 
 def create_lorenz_with_diff_rho(rho):
   """Creates a Lorenz function with a different rho value.
@@ -296,5 +327,5 @@ if __name__ == '__main__':
     # n = len(traj)
     # print(n)
     #plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", False, [0, 180])
-
-    LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
+    lorenz_bifurcation_plot(0.01, 200, dr=0.1)
+    #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)

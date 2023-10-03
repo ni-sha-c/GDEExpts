@@ -207,16 +207,7 @@ def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_
     # TODO: Update trajectory plot
 
     # if (iter+1) % 2000 == 0:
-    #     figure(figsize=(20, 15))
-    #     ax = axes(projection='3d')
-    #     ax.grid()
-    #     ax.plot3D(Y[:, 0], Y[:, 1], Y[:, 2], 'gray', linewidth=4)
-        
-    #     z = pred_test[:, 2]
-    #     ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
-    #     ax.set_title(f"Iteration {iter+1}")
-    #     savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    #     close("all")
+
     
   return pred_test, test_loss
 
