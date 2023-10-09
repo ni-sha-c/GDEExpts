@@ -87,11 +87,11 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE")
+    LE_NODE, u = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE")
     print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
-    LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4")
+    LE_rk4, u = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4")
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||

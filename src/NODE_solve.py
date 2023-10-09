@@ -15,6 +15,8 @@ from examples.Lorenz_periodic import *
 from examples.Lorenz import *
 from examples.Sin import *
 from examples.Tent_map import *
+sys.path.append('..')
+
 
 def simulate(dyn_system, ti, tf, init_state, time_step):
     ''' func: call derivative function
@@ -29,6 +31,25 @@ def simulate(dyn_system, ti, tf, init_state, time_step):
     traj = torchdiffeq.odeint(dyn_system, init, t_eval_point, method='rk4', rtol=1e-8) 
     print("Finished Simulating")
 
+    return traj
+
+
+
+def simulate_NODE(dyn_system, model, ti, tf, init_state, time_step):
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    x = torch.Tensor(init_state).double()
+    t_eval_point = torch.arange(ti,tf,time_step)
+    num_step = tf*int(1/time_step)
+    traj = torch.zeros(num_step, 3).to(device)
+
+    for i in range(num_step):
+        traj[i] = x # shape [3]
+        cur_pred = model(x)
+        x = cur_pred
+    
+    print("Finished Simulating")
     return traj
 
 
@@ -204,11 +225,6 @@ def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_
 
     test_loss = criterion(pred_test, Y).item()
 
-    # TODO: Update trajectory plot
-
-    # if (iter+1) % 2000 == 0:
-
-    
   return pred_test, test_loss
 
 
@@ -231,7 +247,6 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
     # calculating outputs 
     for i in range(num_data):
         pred_traj[i] = X # shape [3]
-        #X = torch.reshape(X, (1,3))
         cur_pred = model(X.double())
         X = cur_pred
         if i+1 % 2000 == 0:
@@ -239,57 +254,63 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
 
     # save predicted trajectory
     pred_traj_csv = np.asarray(pred_traj.detach().cpu())
+    true_traj_csv = np.asarray(true_traj.detach().cpu())
     np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/' +"pred_traj.csv", pred_traj_csv, delimiter=",")
+    np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
 
-    #plot the x, y, z
-    # TODO: update this
-    # if (iter+1) % 2000 == 0:
-    # # if (iter+1) == epochs:
-    #     figure(figsize=(40, 15))
-    #     title(f"Iteration {iter+1}")
-    #     plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
-    #     plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
-    #     plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
-
-
-    #     plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-    #     plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-    #     plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
-
-    #     #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
-    #     xlabel('t')
-    #     ylabel('y')
-    #     legend(loc='best')
-    #     savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/multi_step_pred/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    #     close("all")   
+    # plot traj
+    plot_multi_step_traj_3D(dyn_sys, optimizer_name, test_t, pred_traj, true_traj)
 
     # Plot Error ||pred - true||
-    if (iter+1) == epochs:
-        multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
+    multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
 
   return
 
 
 
+def plot_multi_step_traj_3D(dyn_sys, optim_n, test_t, pred_traj, true_traj):
+    #plot the x, y, z
+
+    figure(figsize=(18, 6))
+    title(f"Multi-Step Predicted Trajectory of Lorenz")
+    plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
+    plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
+    plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
+
+    plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
+    plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
+    plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+
+    #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
+    xlabel('t')
+    ylabel('y')
+    legend(loc='best')
+    savefig('../plot/expt_'+str(dyn_sys)+'_'+ optim_n + '_multi_step_pred/.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+   
+    return
+
+
 
 def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time, tran_state):
-    '''plot error vs real time'''
+    ''' func: plot error vs real time 
+        args:   pred_traj = pred_traj by Neural ODE (csv file)
+                Y = true_traj (csv file) '''
 
     one_iter = int(1/time_step)
-    test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    #test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    test_x = torch.arange(0, integration_time, time_step)
     error_x = np.zeros(test_x.shape)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
     # calculate error
-    # error_x = np.abs(pred[:, 0] - Y[:, 0])
-    #for i in range(error_x.shape[0]):
     error_x = np.abs(pred[:, 0] - Y[:, 0]) # np.linalg.norm
 
     # Save error in csv
     np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+ "error_hist_" + str(time_step) + ".csv", error_x, delimiter=",")
 
     # Convert y to ln(y)
+    error_x = np.clip(error_x, 1e-12, None)
     log_e_error = np.log(error_x)
 
     if dyn_sys == "lorenz":
@@ -317,12 +338,12 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
         ax.plot(lin_x, y_tangent)
     ax.grid(True)
     ax.set_xlabel(r"$n \times \delta t$", fontsize=10)
-    ax.set_ylabel(r"$\log |x(t) - x\_pred(t)|$", fontsize=10)
+    ax.set_ylabel(r"$log |x(t) - x\_pred(t)|$", fontsize=10)
     ax.legend(['x component', 'approx slope'])
     ax.xaxis.set_tick_params(labelsize=10)
     ax.yaxis.set_tick_params(labelsize=10)
     tight_layout()
-    ax.set_title(r"\log |x(t) - x_pred(t)| After {num_epoch} Epochs")
+    ax.set_title(r"log |x(t) - x_pred(t)| After {num_epoch} Epochs")
     fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=1200, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
