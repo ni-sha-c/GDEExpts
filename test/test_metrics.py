@@ -298,6 +298,7 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
             method: "NODE" or any other time integrator '''
 
     x0 = x0.to(device).double()
+    print("initial point: ", x0)
     t_eval_point = torch.linspace(0, time_step, 2).to(device)
     dyn_sys_func, dim = dyn_sys_info
 
@@ -309,14 +310,21 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
         path = "../test_result/expt_"+dyn_sys+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(path))
         model.eval()
+        node_fixed_point = model(x0)
+        print("fixed point for node?: ", node_fixed_point)
         cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
 
     # jacobian_rk4
     else:
-        cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
-
+        fixed_point = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
+        print("fixed point?: ", fixed_point(x0)[1])
+        cur_J = F.jacobian(fixed_point, x0)[1]
+    
+    jac_2 = torch.matmul(cur_J, cur_J.T)
     print(method, cur_J)
-    print("J*u=", torch.matmul(cur_J, u.to(device)))
+    print("eigenvalue: ", torch.linalg.eig(cur_J))
+    print("eigenvalue of J^2: ", torch.linalg.eig(jac_2), "\n")
+    #print("J*u=", torch.matmul(cur_J, u.to(device)))
     return
     
 
@@ -346,28 +354,28 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
 if __name__ == '__main__':
     torch.set_printoptions(sci_mode=True, precision=5)
     #x = torch.randn(3)
-    x = torch.tensor([1,1,1]).double()
+    x = torch.tensor([0,0,0]).double()
     t_eval_point = torch.arange(0,500,1e-2)
-    true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) 
-    eps = 1e-6
+    true_traj = torchdiffeq.odeint(lorenz_periodic, x, t_eval_point, method='rk4', rtol=1e-8)[1000:] #transition phase
+    #eps = 1e-6
     #LE_rk4, u = lyap_exps("lorenz", [lorenz, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
-    #u = torch.tensor([[9.56575e-01, 7.04911e-02, 3.91613e-02],
-    #    [-1.08595e+00, 1.34883e+00, -4.01619e-01],
-    #    [-4.57080e-01, 2.73178e-02, 7.43724e-01]]).double()
+    u = torch.tensor([[9.56575e-01, 7.04911e-02, 3.91613e-02],
+       [-1.08595e+00, 1.34883e+00, -4.01619e-01],
+       [-4.57080e-01, 2.73178e-02, 7.43724e-01]]).double()
     #print("u:", u)
     #u = torch.tensor(ortho_group.rvs(3))
-    #device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    #test_jacobian(device, x, "NODE", 0.01, "AdamW", [lorenz, 3], "lorenz", u)
-    #test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz", u)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    test_jacobian(device, x, "NODE", 0.01, "AdamW", [lorenz_periodic, 3], "lorenz_periodic", u)
+    test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz_periodic, 3], "lorenz_periodic", u)
 
     # compute lyapunov exponent
 
     # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
-    LE_node, u = lyap_exps("lorenz", [lorenz, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
-    print("NODE: ", LE_node)
+    # LE_node, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
+    # print("NODE: ", LE_node)
     
-    LE_rk4, u = lyap_exps("lorenz", [lorenz, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
-    print("rk4 LE: ", LE_rk4)
+    # LE_rk4, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
+    # print("rk4 LE: ", LE_rk4)
 
     # relative_error(optim_name="AdamW", time_step=0.01)
     # fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
@@ -375,5 +383,3 @@ if __name__ == '__main__':
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
     #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
-
-    # multi_step_pred_err(fixed_x, optim_name="AdamW", time_step=0.01, integration_time=100, component=0)

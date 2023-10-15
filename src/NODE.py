@@ -133,6 +133,12 @@ class ODEFunc_Lorenz_periodic (nn.Module):
     super(ODEFunc_Lorenz_periodic , self ).__init__()
     self.net = nn.Sequential(
 
+      nn.Linear(3, 32*9),
+      nn.GELU(),
+      nn.Linear(32*9, 64*9),
+      nn.GELU(),
+      nn.Linear(64*9, 3)
+
       # nn.Linear(y_dim, 40*9),
       # nn.GELU(),
       # nn.Linear(40*9, 20*9),
@@ -142,13 +148,13 @@ class ODEFunc_Lorenz_periodic (nn.Module):
       # nn.Linear(20*9, y_dim)
 
 
-      nn.Linear(y_dim, 40*9),
-      nn.GELU(),
-      nn.Linear(40*9, 40*9),
-      nn.GELU(),
-      nn.Linear(40*9, 40*9),
-      nn.GELU(),
-      nn.Linear(40*9, y_dim)
+      # nn.Linear(y_dim, 20*9),
+      # nn.GELU(),
+      # nn.Linear(20*9, 30*9),
+      # nn.GELU(),
+      # nn.Linear(30*9, 20*9),
+      # nn.GELU(),
+      # nn.Linear(20*9, y_dim)
 
       # nn.Linear(y_dim, 9),
       # nn.SiLU(),

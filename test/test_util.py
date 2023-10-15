@@ -29,10 +29,12 @@ from examples.Tent_map import *
 
 
 
-def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_time, ALL=True):
-    ''' func: plot true phase or simulated phase for 3D dynamic system 
+def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_time, ALL=True, tran_state=100):
+    ''' func: plot true phase or multi-time step simulated phase for 3D dynamic system, each from different random initial point 
         param:  n = num of time step size
-                data = simulated or true trajectory '''
+                data = simulated or true trajectory
+                dyn_sys = dynamical system (str)
+                NODE = plot Neural ODE instead of true traj (bool) '''
 
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
@@ -42,20 +44,18 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
     dyn_system, dim = DYNSYS_MAP[dyn_sys]
     ti, tf = integration_time
     init_state = torch.randn(dim)
+    true_data = simulate(dyn_system, ti, tf, init_state, time_step)[tran_state:]
 
-    # If want to plot true trajectory,
-    if NODE == False:
-        true_data = simulate(dyn_system, ti, tf, init_state, time_step)
-        data = true_data
-        print("Finished simulating")
-
-        path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'phase_plot_' + str(time_step) +'.pdf'
-    
-    # If want to plot NODE trajectory,
-    elif NODE == True:
-        path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'NODE_phase_plot_' + str(time_step) +'.pdf'
-
+    # If want to plot either NODE or true trajectory only,
     if ALL == True:
+        # If want to plot true trajectory only,
+        if NODE == False:
+            path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'phase_plot_' + str(time_step) +'.pdf'
+            data = true_data
+        # If want to plot NODE trajectory only,
+        elif NODE == True:
+            path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'NODE_phase_plot_' + str(time_step) +'.pdf'
+        
         fig, (ax1, ax2, ax3) = subplots(1, 3, figsize=(18,6))
         my_range = np.linspace(-1,1,n)
         x = data[:, 0]
@@ -76,38 +76,41 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
 
         #plt.colorbar(sc)
         fig.savefig(path, format='pdf', dpi=1200)
+    
+    # If want to plot comparison plot between NODE vs true trajectory
     else:
-        print("compare!")
-        # If want to plot comparison plot between NODE vs true trajectory
-        true_data = simulate(dyn_system, ti, tf, init_state, time_step)
-
+        print("Plot comparison!")
         path = '../plot/Compare_phase_plot_' + str(time_step) +'.pdf'
 
-        x = data[:, 0]
-        y = data[:, 1]
-        z = data[:, 2]
+        limit = 10000
+        x = data[:limit-tran_state, 0]
+        y = data[:limit-tran_state, 1]
+        z = data[:limit-tran_state, 2]
 
-        x_true = true_data[:, 0]
-        y_true = true_data[:, 1]
-        z_true = true_data[:, 2]
+        x_true = true_data[:limit-tran_state, 0]
+        y_true = true_data[:limit-tran_state, 1]
+        z_true = true_data[:limit-tran_state, 2]
+        t = torch.arange(ti, tf, time_step)[:limit-tran_state]
+        print("t", t.shape)
+        print("x", x.shape)
+        print("x_true", x_true.shape)
 
         fig = figure(figsize=(18, 6))
         gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 0.05])  # 3 columns: 2 for subplots and 1 for colorbar
 
         # Create the first subplot
         ax1 = subplot(gs[0])
-        ax1.scatter(x, z, c=y, s = 3, cmap='plasma', alpha=0.5)
-        ax1.set_xlabel("X")
-        ax1.set_ylabel("Z")
-        ax1.set_title("Phase Portrait of Neural ODE")
+        ax1.scatter(x, z, c=t, s = 4, cmap='winter', alpha=0.5)
+        ax1.set_xlabel("X", fontsize=18)
+        ax1.set_ylabel("Z", fontsize=18)
+        ax1.set_title("Phase Portrait of Neural ODE", fontsize=18)
 
         # Create the second subplot
         ax2 = subplot(gs[1], sharey=ax1)  # sharey ensures equal height
-        sc = ax2.scatter(x_true, z_true, c=y_true, s = 3,cmap='plasma', alpha=0.5)
-        ax2.set_xlabel("X")
-        ax2.set_ylabel("Z")
-        ax2.set_title("Phase Portrait of True ODE")
-
+        sc = ax2.scatter(x_true, z_true, c=t, s = 4,cmap='winter', alpha=0.5)
+        ax2.set_xlabel("X", fontsize=18)
+        ax2.set_ylabel("Z", fontsize=18)
+        ax2.set_title("Phase Portrait of True ODE", fontsize=18)
 
         # Add a colorbar to the right of the subplots
         cax = subplot(gs[2])
@@ -143,10 +146,10 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
     R = len(r)
     # range of time
     dt = 0.001  # time step 0.001
-    t = np.arange(0, 50, dt) #50
+    t = np.arange(0, 1, dt) #50
     T = len(t)
     # number of initial conditions
-    n = 20 # 10
+    n = 2 # 10
     # initialize solution arrays, local min arrays, local max arrays
     xs, ys, zs = (np.empty([n, T+1]) for i in range(3))
     r_maxes, r_mins, z_maxes, z_mins = ([] for i in range(4))
@@ -176,7 +179,8 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
             temp = []
             for num in range(num_max[1]):
                 #print("at num:", num, idx_max[0][num], idx_max[1][num], zs[idx_max[0][num], idx_max[1][num]], "\n")
-                temp.append(zs[idx_max[0][num], idx_max[1][num]])
+                for j in range(n):
+                    temp.append(zs[idx_max[0][num], idx_max[1][num]])
             z_maxes.append(temp)
 
         # for local minima
@@ -197,11 +201,13 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
     z_maxes = np.asarray(z_maxes)
     r_mins = np.asarray(r_mins)
     z_mins = np.asarray(z_mins)
+    t = np.arange(n)
 
     for xe, ye in zip(r_maxes, z_maxes):
-        scatter([xe]*len(ye), ye, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
+        scatter([xe]*len(ye), ye, color=(0.25, 0.25, 0.25) , s=1, alpha=0.4) # color=(0.25, 0.25, 0.25) c=t, cmap="gist_gray", 
+        print(ye)
     for xe, ye in zip(r_mins, z_mins):
-        scatter([xe]*len(ye), ye, color="lightgreen", s=1, alpha=0.4)
+        scatter([xe]*len(ye), ye, c=t, cmap="winter", s=1, alpha=0.4) # color="lightgreen"
 
     ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
     xlim(0, r_range)
@@ -213,63 +219,63 @@ def lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
 
 
 
-# def org_lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
-#     ''' func: plot bifurcation plot for 3D system 
-#               while also checking ergodicity of system
-#               at certain rho value
-#         param:  r_range = range of rho
-#                 dr = step size of rho '''
-#     # r_H = 24.74 when sigma = 10, beta = 8/3
-#     # r < 1 | 1 < r < 24.74 | r = 24.74 | r > 24.74
-#     # R * n * T = 200 * 2 * 10 = 4000
+def org_lorenz_bifurcation_plot(time_step, r_range, dr=0.1):
+    ''' func: plot bifurcation plot for 3D system 
+              while also checking ergodicity of system
+              at certain rho value
+        param:  r_range = range of rho
+                dr = step size of rho '''
+    # r_H = 24.74 when sigma = 10, beta = 8/3
+    # r < 1 | 1 < r < 24.74 | r = 24.74 | r > 24.74
+    # R * n * T = 200 * 2 * 10 = 4000
 
-#     # range of parameter rho, time, number of initial condition
-#     r = np.arange(0, r_range, dr)
-#     R = len(r)
-#     dt = 0.001  # time step
-#     t = np.arange(0, 50, dt)  # time range # 50
-#     T = len(t)
-#     n = 20
+    # range of parameter rho, time, number of initial condition
+    r = np.arange(0, r_range, dr)
+    R = len(r)
+    dt = 0.001  # time step
+    t = np.arange(0, 50, dt)  # time range # 50
+    T = len(t)
+    n = 5
 
-#     # initialize solution arrays
-#     xs, ys, zs = (np.empty(T+ 1) for i in range(3))
+    # initialize solution arrays
+    xs, ys, zs = (np.empty(T+ 1) for i in range(3))
 
-#     # initial values x0,y0,z0 for the system
-#     r_maxes, z_maxes, r_mins, z_mins = ([] for i in range(4))
+    # initial values x0,y0,z0 for the system
+    r_maxes, z_maxes, r_mins, z_mins = ([] for i in range(4))
 
-#     for R in r:
-#         print(f"{R=:.2f}")
-#         for ni in range(n):
-#             xs[0], ys[0], zs[0] = np.random.rand(3)
-#             for i in range(len(t)):
-#                 # Find solution
-#                 x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
-#                 xs[i + 1] = xs[i] + (x_dot * dt)
-#                 ys[i + 1] = ys[i] + (y_dot * dt)
-#                 zs[i + 1] = zs[i] + (z_dot * dt)
-#             # save local maximum
-#             for i in range(1, len(zs) - 1):
-#                 # save the local maxima
-#                 if zs[i - 1] < zs[i] and zs[i] > zs[i + 1]:
-#                     r_maxes.append(R)
-#                     z_maxes.append(zs[i])
-#                 # save the local minima
-#                 elif zs[i - 1] > zs[i] and zs[i] < zs[i + 1]:
-#                     r_mins.append(R)
-#                     z_mins.append(zs[i])
+    for R in r:
+        print(f"{R=:.2f}")
+        for ni in range(n):
+            xs[0], ys[0], zs[0] = np.random.rand(3)
+            for i in range(len(t)):
+                # Find solution
+                x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
+                xs[i + 1] = xs[i] + (x_dot * dt)
+                ys[i + 1] = ys[i] + (y_dot * dt)
+                zs[i + 1] = zs[i] + (z_dot * dt)
+            # save local maximum
+            for i in range(1, len(zs) - 1):
+                # save the local maxima
+                if zs[i - 1] < zs[i] and zs[i] > zs[i + 1]:
+                    r_maxes.append(R)
+                    z_maxes.append(zs[i])
+                # save the local minima
+                elif zs[i - 1] > zs[i] and zs[i] < zs[i + 1]:
+                    r_mins.append(R)
+                    z_mins.append(zs[i])
 
-#     fig, ax = subplots(figsize=(18,6))
-#     ax.scatter(r_maxes, z_maxes, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
-#     ax.scatter(r_mins, z_mins, color="lightgreen", s=1, alpha=0.4)
-#     # # Calculate the bifurcation plot values for r = 24.74
-#     # Plot the bifurcation plot values for r = 24.74 as a dashed line
-#     ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
-#     xlim(0, r_range)
-#     ylim(0, 300)
+    fig, ax = subplots(figsize=(18,6))
+    ax.scatter(r_maxes, z_maxes, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
+    ax.scatter(r_mins, z_mins, color="lightgreen", s=1, alpha=0.4)
+    # # Calculate the bifurcation plot values for r = 24.74
+    # Plot the bifurcation plot values for r = 24.74 as a dashed line
+    ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
+    xlim(0, r_range)
+    ylim(0, 300)
 
-#     path = '../plot/'+'bifurcation_plot_modified'+'.pdf'
-#     fig.savefig(path, format='pdf')
-#     return
+    path = '../plot/'+'bifurcation_plot_modified_'+str(n)+'.svg'
+    fig.savefig(path, format='svg', dpi=800)
+    return
 
 
 def plot_3d_trajectory(Y, pred_test, comparison=False):
@@ -459,10 +465,10 @@ def LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01):
 if __name__ == '__main__':
 
     # test plot_3d_space()
-    #traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
-    #n = len(traj)
-    #plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", False, [0, 180], False)
+    traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
+    n = len(traj)
+    plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", True, [0, 500], False, 100)
 
 
-    lorenz_bifurcation_plot(0.01, 200, dr=0.1)
+    #org_lorenz_bifurcation_plot(0.01, 200, dr=0.1)
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)

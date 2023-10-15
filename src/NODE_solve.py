@@ -233,7 +233,7 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
 
   # num_of_extrapolation_dataset
   num_data, dim = true_traj.shape
-  test_t = torch.linspace(0, 1, num_data)
+  test_t = torch.linspace(0, integration_time, num_data)
   pred_traj = torch.zeros(num_data, dim).to(device)
 
   with torch.no_grad():
@@ -285,7 +285,7 @@ def plot_multi_step_traj_3D(dyn_sys, optim_n, test_t, pred_traj, true_traj):
     xlabel('t')
     ylabel('y')
     legend(loc='best')
-    savefig('../plot/expt_'+str(dyn_sys)+'_'+ optim_n + '_multi_step_pred/.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    savefig('../plot/expt_'+str(dyn_sys)+'_'+ optim_n + '_multi_step_pred.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
    
     return
 
@@ -297,8 +297,8 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
                 Y = true_traj (csv file) '''
 
     one_iter = int(1/time_step)
-    #test_x = torch.arange(0, integration_time, time_step)[tran_state:]
-    test_x = torch.arange(0, integration_time, time_step)
+    test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    #test_x = torch.arange(0, integration_time, time_step)
     error_x = np.zeros(test_x.shape)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
@@ -343,8 +343,8 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     ax.xaxis.set_tick_params(labelsize=10)
     ax.yaxis.set_tick_params(labelsize=10)
     tight_layout()
-    ax.set_title(r"log |x(t) - x_pred(t)| After {num_epoch} Epochs")
-    fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=1200, bbox_inches ='tight', pad_inches = 0.1)
+    #ax.set_title(r"log |x(t) - x_pred(t)|"+" After {num_epoch} Epochs")
+    fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 
