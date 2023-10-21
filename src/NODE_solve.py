@@ -138,6 +138,14 @@ def create_iterables(dataset, batch_size):
     return train_iter, test_iter
 
 
+def lyapunov_loss(true_lyapunov, node_lyapunov, node_y, true_y):
+    lyapunov_loss = torch.abs(true_lyapunov - node_lyapunov)
+    output_loss = torch.mean((node_y - true_y) ** 2)
+    
+    total_loss = lyapunov_loss + output_loss
+    return total_loss
+
+
 
 def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
 

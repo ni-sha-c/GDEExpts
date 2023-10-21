@@ -56,6 +56,7 @@ if __name__ == '__main__':
     # Assign Initial Point of Orbit
     x0 = torch.randn(dim)
     x_multi_0 = torch.randn(dim)
+    x1 = torch.tensor([0.1, 0.1, 0.1]).double()
 
     # Initialize Model and Dataset Parameters
     criterion = torch.nn.MSELoss()
@@ -64,7 +65,8 @@ if __name__ == '__main__':
 
     # Generate Training/Test/Multi-Step Prediction Data
     traj = simulate(dyn_sys_func, 0, args.integration_time, x0, args.time_step)
-    longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    #longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    longer_traj = simulate(dyn_sys_func, 0, real_time, x1, args.time_step)
     multistep_traj = longer_traj[args.tran_state:]
     dataset = create_data(traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.tran_state)
 

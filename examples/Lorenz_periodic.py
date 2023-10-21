@@ -7,7 +7,7 @@ def lorenz_periodic(t, u):
         Reference: Colin Sparrow, The Lorenz Equations: Bifurcations, Chaos, and Strange Attractors, Springer, 1982"""
 
     sigma = 10.0
-    rho = 5.0 #2
+    rho = 24.7 #1.5 #99.96 # #2
     beta = 8/3
 
     res = torch.stack([
