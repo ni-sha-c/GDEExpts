@@ -30,6 +30,8 @@ from examples.Tent_map import *
     4. plot_3d_trajectory()
     5. create_lorenz_with_diff_rho()
     6. LE_diff_rho() 
+    7. plot_time_space_lorenz()
+    8. 
 '''
 
 
@@ -136,69 +138,6 @@ def lorenz_system(x, y, z, rho, beta=8/3, sigma=10.0):
 
 
 
-# def lorenz_bif_plot(dyn_sys, time_step, r_range=200, dr=0.1, tf=200, n=100):
-#     ''' func: plot bifurcation plot for 3D system 
-#               while also checking ergodicity of system
-#               at certain rho value
-#         param:  r_range = range of rho
-#                 dr = step size of rho
-#                 tf = integration time from [0, tf] 
-#                 n = number of initial condition '''
-
-#     # r_H = 24.74 when sigma = 10, beta = 8/3
-#     # r < 1 | 1 < r < 24.74 | r = 24.74 | r > 24.74
-#     # R * n * T = 200 * 2 * 10 = 4000
-
-#     # range of parameter rho
-#     r = np.arange(0, r_range, dr)
-#     R = len(r)
-#     # range of time
-#     t = np.arange(0, tf, time_step)  # time range # 50
-#     T = len(t)
-#     # transition_phase
-#     trans_t = 5000
-
-#     # initialize solution arrays
-#     xs, ys, zs = (np.empty(T+ 1) for i in range(3))
-#     # initial values x0,y0,z0 for the system
-#     z_maxes, z_mins = ([] for i in range(4))
-
-#     for R in r:
-#         print(f"{R=:.2f}")
-#         for ni in range(n):
-#             init_state = torch.rand(3) * 10 #np.random.rand(3)
-#             xs[0], ys[0], zs[0] = init_state
-#             # Find solution
-#             for i in range(len(t)):
-#                 x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
-#                 xs[i + 1] = xs[i] + (x_dot * time_step)
-#                 ys[i + 1] = ys[i] + (y_dot * time_step)
-#                 zs[i + 1] = zs[i] + (z_dot * time_step)
-#             # save global maximum
-#             z_maxes.append(np.max(zs[trans_t:]))
-#             z_mins.append(np.min(zs[trans_t:]))
-#             if (z_maxes[-1] - z_mins[-1]) < 1e-7:
-#                 print("fixed point at rho=", R)
-#         if (z_maxes[-1] - z_maxes[-10]) < 1e-7:
-#             print("ergodic at rho=", R)
-
-#     print("z", np.asarray(z_maxes).shape)
-
-#     fig, ax = subplots(figsize=(36,12))
-#     ax.scatter(r, z_maxes, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
-#     ax.scatter(r, z_mins, color="lightgreen", s=1, alpha=0.4)
-#     # Plot the bifurcation plot values for r = 24.74 as a dashed line
-#     ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
-#     ax.xaxis.set_tick_params(labelsize=24)
-#     xlim(0, r_range)
-#     ylim(0, 500)
-
-#     path = '../plot/'+'bifurcation_plot_modified_longer_'+str(n)+'.svg'
-#     fig.savefig(path, format='svg', dpi=400)
-#     return
-
-
-
 def compute_lorenz_bif(hyper_params):
     ''' func: plot bifurcation plot for 3D system 
               while also checking ergodicity of system
@@ -219,7 +158,7 @@ def compute_lorenz_bif(hyper_params):
     t = np.arange(0, tf, time_step)  # time range # 50
     T = len(t)
     # transition_phase
-    trans_t = 20000
+    trans_t = 10000
 
     # initialize solution arrays
     xs, ys, zs = (np.empty(T+ 1) for i in range(3))
@@ -242,23 +181,25 @@ def compute_lorenz_bif(hyper_params):
 
 
 
-def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, n):
+def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, avg_min, avg_max, n):
     ''' func: plot bifurcation plot for 3D system 
               while also checking ergodicity of system
               at certain rho value '''
 
 
     fig, ax = subplots(figsize=(36,12))
-    ax.scatter(r, z_maxes, color=(0.25, 0.25, 0.25), s=1, alpha=0.4)
-    ax.scatter(r, z_mins, color="lightgreen", s=1, alpha=0.4)
+    ax.scatter(r, z_maxes, color=(0.25, 0.25, 0.25), s=1.5, alpha=0.5)
+    ax.scatter(r, z_mins, color="lightgreen", s=1.5, alpha=0.5)
+    ax.plot(r, avg_max, color="lightcoral" ,alpha=0.7, linewidth=3)
+    ax.plot(r, avg_min, color="seagreen" ,alpha=0.7, linewidth=3)
     # Plot the bifurcation plot values for r = 24.74 as a dashed line
-    ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
+    # ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
     ax.xaxis.set_tick_params(labelsize=24)
     ax.yaxis.set_tick_params(labelsize=24)
     xlim(0, r_range)
     ylim(0, 300)
 
-    path = '../plot/'+'bifurcation_plot_'+str(n)+'.svg'
+    path = '../plot/'+'bifurcation_plot_new_'+str(n)+'.svg'
     fig.savefig(path, format='svg', dpi=400)
     return
 
@@ -424,28 +365,31 @@ if __name__ == '__main__':
     param_list = list(itertools.product(r, n))
 
     # 2. run parallel
-    with multiprocessing.Pool(processes=1000) as pool:
+    with multiprocessing.Pool(processes=500) as pool:
         res = pool.map(compute_lorenz_bif, param_list)
         res = np.array(res)
         z_mins, z_maxes = res[:, 0], res[:, 1]
     
     # 3. create plot
     print("creating plot... ")
+    time_avg_max = [np.mean(z_maxes[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
+    time_avg_min = [np.mean(z_mins[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
+
     r_axis = [el for el in r for i in range(len(n))]
-    r_axis = np.array(r_axis)
+    avg_min = [el for el in time_avg_min for i in range(len(n))]
+    avg_max = [el for el in time_avg_max for i in range(len(n))]
+    r_axis, avg_min, avg_max = np.array(r_axis), np.array(avg_min), np.array(avg_max)
     print(len(n))
-    plot_lorenz_bif("lorenz", r_axis, z_mins, z_maxes, len(n))
+    plot_lorenz_bif("lorenz", r_axis, z_mins, z_maxes, avg_min, avg_max, len(n))
 
     # 4. Check property
     fixed_point = []
     ergodic_point = []
-    print("z_max", z_maxes[:5])
-    print("min", z_mins[:5])
     for i in range(0, len(r_axis), 100):
-        if (np.abs(z_maxes[i] - z_mins[i])) < 1e-8:
+        if (np.abs(z_maxes[i] - z_mins[i])) < 1e-7:
             print("fixed point at rho=", r_axis[i])
             fixed_point.append([r_axis[i], z_maxes[i]])
-        if (np.abs(z_maxes[i+10] - z_maxes[i+90])) < 1e-8:
+        if (np.abs(z_maxes[i+10] - z_maxes[i+90])) < 1e-7:
             print("ergodic at rho=", r_axis[i])
             ergodic_point.append([r_axis[i], z_maxes[i+10]])
     np.savetxt('../test_result/expt_lorenz/'+ "fixed_point.csv", np.asarray(fixed_point), delimiter=",")
