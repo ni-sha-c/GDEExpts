@@ -191,15 +191,9 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
             y_pred = model(X).to(device)
 
             optimizer.zero_grad()
-            output_loss = criterion(y_pred, Y)
-            cur_J = test_jacobian(device, y_pred, "NODE", 0.01, "AdamW", [lorenz, 3], "lorenz", model)
-            node_lyapunov = torch.linalg.eig(cur_J)
-            node_lyapunov = node_lyapunov[0].clone()
-            print("nl", node_lyapunov)
-            node_lyapunov = torch.tensor(node_lyapunov[0])
-            final_loss = lyapunov_loss(true_lyapunov, node_lyapunov, output_loss.item())
-            train_loss = final_loss
-            final_loss.backward()
+            loss = criterion(y_pred, Y)
+            train_loss = loss.item()
+            loss.backward()
             optimizer.step()
 
             # leave it for debug purpose for now, and remove it

@@ -89,7 +89,7 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
         print("Plot comparison!")
         path = '../plot/Compare_phase_plot_' + str(time_step) +'.pdf'
 
-        limit = 10000
+        limit = 40000
         x = data[:limit-tran_state, 0]
         y = data[:limit-tran_state, 1]
         z = data[:limit-tran_state, 2]
@@ -108,21 +108,22 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
         # Create the first subplot
         ax1 = subplot(gs[0])
         ax1.scatter(x, z, c=t, s = 4, cmap='winter', alpha=0.5)
-        ax1.set_xlabel("X", fontsize=18)
-        ax1.set_ylabel("Z", fontsize=18)
+        ax1.set_xlabel("X", fontsize=24)
+        ax1.set_ylabel("Z", fontsize=24)
         ax1.set_title("Phase Portrait of Neural ODE", fontsize=18)
+        ax1.tick_params(labelsize=24)
 
         # Create the second subplot
         ax2 = subplot(gs[1], sharey=ax1)  # sharey ensures equal height
         sc = ax2.scatter(x_true, z_true, c=t, s = 4,cmap='winter', alpha=0.5)
-        ax2.set_xlabel("X", fontsize=18)
-        ax2.set_ylabel("Z", fontsize=18)
+        ax2.set_xlabel("X", fontsize=24)
+        ax2.set_ylabel("Z", fontsize=24)
         ax2.set_title("Phase Portrait of True ODE", fontsize=18)
+        ax2.tick_params(labelsize=24)
 
         # Add a colorbar to the right of the subplots
         cax = subplot(gs[2])
         cbar = colorbar(sc, cax=cax)
-        xaxis.set_tick_params(labelsize=24)
         tight_layout()
 
         fig.savefig(path, format='pdf', dpi=1200)
@@ -158,7 +159,7 @@ def compute_lorenz_bif(hyper_params):
     t = np.arange(0, tf, time_step)  # time range # 50
     T = len(t)
     # transition_phase
-    trans_t = 10000
+    trans_t = 30000
 
     # initialize solution arrays
     xs, ys, zs = (np.empty(T+ 1) for i in range(3))
@@ -175,6 +176,7 @@ def compute_lorenz_bif(hyper_params):
     # save global maximum
     z_maxes = np.max(zs[trans_t:])
     z_mins = np.min(zs[trans_t:])
+    #time_avg_max
 
     res = [z_mins, z_maxes]
     return res
@@ -345,44 +347,6 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
     return
 
 
-# def corr_plot():
-#     # ----- rk4 ----- #
-#     t=50
-#     dt=0.01
-#     correlation = []
-
-#     tau = torch.arange(0, 100, 0.1)
-#     init = torch.randn(3)
-
-#     for i in range(len(tau)):
-
-#         print(i)
-#         # to maintain same number of time step, reassign t accordingly
-#         t = torch.arange(0, 50+tau[i], 0.01) # 0.001
-#         num_t = t.shape[0]
-        
-#         traj = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8)
-
-#         print("for x:", num_t-i*10)
-#         print("for y:", i*10)
-#         x = traj[:num_t-i*10, 0]
-#         z = traj[i*10:, 2]
-#         print(x.shape, z.shape)
-#         print("x", x)
-#         print("z", z)
-
-#         xz = torch.matmul(x,z)
-#         mean_xz = torch.mean(xz)
-#         correlation.append(mean_xz)
-
-#     val = np.array(correlation)
-#     print("val", val)
-#     plot_correlation("lorenz", tau, val)
-
-#     # ----- node ----- #
-#     return
-
-
 
 def corr_plot_rk4(i):
 
@@ -392,8 +356,8 @@ def corr_plot_rk4(i):
     t=50
     dt=0.01
     correlation = []
-    tau = torch.arange(0, 300, 1)
-    init = torch.tensor([-2., -2., -2.])
+    tau = torch.arange(0, 100, 1)
+    init = torch.tensor([-0.8, -0.8, -0.8])
 
     # Generate traj(0 ~ 50+tau)
     time = torch.arange(0, t+tau[i], dt) # 0.001
@@ -414,19 +378,19 @@ def corr_plot_rk4(i):
 def corr_plot_node(device, i):
     # ----- node ----- #
 
-    init = torch.tensor([-2., -2., -2.])
+    init = torch.tensor([-0.8, -0.8, -0.8])
     node_correlation = []
 
     # Generate traj(0 ~ 50+tau)
     t=50
     dt=0.01
-    tau = torch.arange(0, 300, 1)
+    tau = torch.arange(0, 100, 1)
     time = torch.arange(0, t+tau[i], dt)
     num_t = time.shape[0]
 
     # Load the saved model
     model = sol.create_NODE(device, dyn_sys="lorenz", n_nodes=3, n_hidden=64, T=dt).double()
-    path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(dt)+'/'+'model.pt'
+    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
     print("Finished Loading model")
@@ -435,52 +399,34 @@ def corr_plot_node(device, i):
     # Generate traj(0 ~ 50+tau)
     temp = torch.zeros(num_t, 3).to(device)
     for j in range(num_t):
-        print(j)
+        print(i, j)
         temp[j] = x # shape [3]
         cur_pred = model(x.double())
         x = cur_pred
 
     # Compute x*z
-    node_x = temp[:num_t-j*100, 0]
-    node_z = temp[j*100:, 2]
+    print("temp", temp.shape)
+    node_x = temp[:num_t-i*100, 0]
+    node_z = temp[i*100:, 2]
     node_xz = torch.matmul(node_x, node_z)
-    node_mean_xz = torch.mean(node_xz)
+    node_mean_xz = torch.mean(node_xz).detach().cpu()
     node_correlation.append(node_mean_xz)
 
     return node_correlation
 
 
 
-# def compute_correlation(hyper_params):
-#     tau, t = hyper_params
-#     print(tau, t)
-
-#     t_eval_point = torch.arange(0, t, 2)
-#     tau_eval_point = torch.arange(0, t+tau, 2)
-#     init = torch.randn(3)
-
-#     # z component for model(t)
-#     z = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8)[0, 2]
-#     # x component for model(t+tau)
-#     x = torchdiffeq.odeint(lorenz, init, tau_eval_point, method='rk4', rtol=1e-8)[0, 0]
-#     res = x*z
-#     #print(res, np.array(res).shape)
-
-#     return res
-
-
-
 def plot_correlation(dyn_sys, tau, val, node_val):
     fig, ax = subplots(figsize=(36,12))
     ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=3, alpha=0.6)
-    ax.semilogy(tau, node_val, color="coral", marker='o', linewidth=3, alpha=0.6)
+    ax.semilogy(tau, node_val, color="slateblue", marker='o', linewidth=3, alpha=0.6)
 
     # ax.xaxis.set_tick_params(labelsize=24)
     # ax.yaxis.set_tick_params(labelsize=24)
     #xlim(0, tau[-1])
     #ylim(-10, 10)
     ax.tick_params(labelsize=24)
-    ax.legend(["rk4", "Neural ODE"], size=24)
+    ax.legend(["rk4", "Neural ODE"], fontsize=24)
 
     path = '../plot/'+'correlation'+'.svg'
     fig.savefig(path, format='svg', dpi=400)
@@ -492,16 +438,15 @@ def plot_correlation(dyn_sys, tau, val, node_val):
 if __name__ == '__main__':
 
     #----- test plot_3d_space() -----#
-    # traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
-    # n = len(traj)
-    # plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", True, [0, 500], False, 100)
+    '''traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
+    n = len(traj)
+    plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", True, [0, 500], False, 0)'''
 
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
 
 
     #----- test bifurcation plot -----#
-
-    '''# 1. initialize
+    # 1. initialize
     r_range=200
     r = np.arange(0, r_range, 0.1) # range of parameter rho
     n = range(100) # num of new initial condition
@@ -517,6 +462,7 @@ if __name__ == '__main__':
     print("creating plot... ")
     time_avg_max = [np.mean(z_maxes[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
     time_avg_min = [np.mean(z_mins[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
+    
 
     r_axis = [el for el in r for i in range(len(n))]
     avg_min = [el for el in time_avg_min for i in range(len(n))]
@@ -536,35 +482,29 @@ if __name__ == '__main__':
             print("ergodic at rho=", r_axis[i])
             ergodic_point.append([r_axis[i], z_maxes[i+10]])
     np.savetxt('../test_result/expt_lorenz/'+ "fixed_point.csv", np.asarray(fixed_point), delimiter=",")
-    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")'''
+    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")
 
 
     # ----- correlation plot ----- #
-    # corr_plot()
     
-    #1. initialize
-    tau = torch.arange(0, 300, 1)
+    '''#1. initialize
+    tau = torch.arange(0, 100, 1)
     index_list = range(len(tau))
+    num_processes = 20 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    multiprocessing.set_start_method('spawn')
 
-    # # 2. run parallel
-    with multiprocessing.Pool(processes=500) as pool:
+    # 2. run parallel
+    with multiprocessing.Pool(processes=num_processes) as pool:
         res = pool.map(corr_plot_rk4, index_list)
-        # node_res = pool.map(corr_plot_node, index_list)
-        val = np.array(res)
-        # node_val = np.array(node_res)
-        print("res shape", val.shape)
-        
-    node_res = []
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    for i in range(len(tau)):
-        node_corr = corr_plot_node(device, i)
-        node_res.append(node_corr)
-    node_val = np.array(node_res)
-    print("res node shape", node_val.shape)
-    print("val", node_val)
-        
+        node_res = pool.starmap(corr_plot_node, [(device, i) for i in range(len(tau))])
 
-    plot_correlation("lorenz", tau, rk4_val, node_val)
+        rk4_val = np.array(res)
+        node_val = np.array(node_res)
+        print("res shape", rk4_val.shape)
+        
+    # 3. plot
+    plot_correlation("lorenz", tau, rk4_val, node_val)'''
     
 
 

@@ -230,7 +230,7 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
 
 
 
-def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method, model):
+def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method):
     ''' Compute Lyapunov Exponents '''
 
     # Initialize parameter
@@ -249,9 +249,9 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # load the saved model
-        # model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
-        # path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
-        # model.load_state_dict(torch.load(path), strict=False)
+        model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
         for i in range(0, iters):

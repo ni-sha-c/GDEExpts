@@ -56,6 +56,7 @@ if __name__ == '__main__':
     # Assign Initial Point of Orbit
     x0 = torch.randn(dim)
     x_multi_0 = torch.randn(dim)
+    print("initial point:", x_multi_0)
     x1 = torch.tensor([0.1, 0.1, 0.1]).double()
 
     # Initialize Model and Dataset Parameters
