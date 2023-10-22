@@ -230,7 +230,7 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
 
 
 
-def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method):
+def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method, model):
     ''' Compute Lyapunov Exponents '''
 
     # Initialize parameter
@@ -249,9 +249,9 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # load the saved model
-        model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
-        path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
-        model.load_state_dict(torch.load(path), strict=False)
+        # model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        # path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        # model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
         for i in range(0, iters):
@@ -290,33 +290,6 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
     
     return torch.tensor(LE), U
 
-
-# def calculate_lyapunov_exponent(model, input_sequence):
-#   """Calculates the Lyapunov exponent of a neural network.
-
-#   Args:
-#     model: A PyTorch neural network model.
-#     input_sequence: A PyTorch tensor containing the input sequence to the model.
-
-#   Returns:
-#     A float representing the Lyapunov exponent of the model.
-#   """
-
-#   # Initialize the Jacobian matrix and the Lyapunov exponent.
-#   jacobian = torch.eye(input_sequence.shape[1])
-#   lyapunov_exponent = 0.0
-
-#   # Iterate over the input sequence and calculate the Jacobian matrix at each step.
-#   for input in input_sequence:
-#     jacobian = torch.matmul(jacobian, model.jacobian(input))
-
-#   # Perform QR decomposition of the Jacobian matrix.
-#   q, r = qr(jacobian)
-
-#   # Calculate the Lyapunov exponent as the average of the diagonal elements of R.
-#   lyapunov_exponent = np.mean(np.diag(r))
-
-#   return lyapunov_exponent
 
 
 

@@ -12,6 +12,8 @@ from src import NODE_util as util
 from examples import Lorenz as func
 import test_node_lorenz as test_node
 
+
+
 def test_jac_node(x, eps, optim_name, time_step):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     x = x.to(device)

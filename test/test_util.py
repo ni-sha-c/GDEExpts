@@ -31,7 +31,7 @@ from examples.Tent_map import *
     5. create_lorenz_with_diff_rho()
     6. LE_diff_rho() 
     7. plot_time_space_lorenz()
-    8. 
+    8. correlation_plot()
 '''
 
 
@@ -345,6 +345,149 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
     return
 
 
+# def corr_plot():
+#     # ----- rk4 ----- #
+#     t=50
+#     dt=0.01
+#     correlation = []
+
+#     tau = torch.arange(0, 100, 0.1)
+#     init = torch.randn(3)
+
+#     for i in range(len(tau)):
+
+#         print(i)
+#         # to maintain same number of time step, reassign t accordingly
+#         t = torch.arange(0, 50+tau[i], 0.01) # 0.001
+#         num_t = t.shape[0]
+        
+#         traj = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8)
+
+#         print("for x:", num_t-i*10)
+#         print("for y:", i*10)
+#         x = traj[:num_t-i*10, 0]
+#         z = traj[i*10:, 2]
+#         print(x.shape, z.shape)
+#         print("x", x)
+#         print("z", z)
+
+#         xz = torch.matmul(x,z)
+#         mean_xz = torch.mean(xz)
+#         correlation.append(mean_xz)
+
+#     val = np.array(correlation)
+#     print("val", val)
+#     plot_correlation("lorenz", tau, val)
+
+#     # ----- node ----- #
+#     return
+
+
+
+def corr_plot_rk4(i):
+
+    print(i)
+
+    # ----- rk4 ----- #
+    t=50
+    dt=0.01
+    correlation = []
+    tau = torch.arange(0, 300, 1)
+    init = torch.tensor([-2., -2., -2.])
+
+    # Generate traj(0 ~ 50+tau)
+    time = torch.arange(0, t+tau[i], dt) # 0.001
+    num_t = time.shape[0]
+    traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)
+
+    x = traj[:num_t-i*100, 0]
+    z = traj[i*100:, 2]
+
+    xz = torch.matmul(x,z)
+    mean_xz = torch.mean(xz)
+    correlation.append(mean_xz)
+
+    return correlation
+
+
+
+def corr_plot_node(device, i):
+    # ----- node ----- #
+
+    init = torch.tensor([-2., -2., -2.])
+    node_correlation = []
+
+    # Generate traj(0 ~ 50+tau)
+    t=50
+    dt=0.01
+    tau = torch.arange(0, 300, 1)
+    time = torch.arange(0, t+tau[i], dt)
+    num_t = time.shape[0]
+
+    # Load the saved model
+    model = sol.create_NODE(device, dyn_sys="lorenz", n_nodes=3, n_hidden=64, T=dt).double()
+    path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(dt)+'/'+'model.pt'
+    model.load_state_dict(torch.load(path))
+    model.eval()
+    print("Finished Loading model")
+
+    x = init.to(device)
+    # Generate traj(0 ~ 50+tau)
+    temp = torch.zeros(num_t, 3).to(device)
+    for j in range(num_t):
+        print(j)
+        temp[j] = x # shape [3]
+        cur_pred = model(x.double())
+        x = cur_pred
+
+    # Compute x*z
+    node_x = temp[:num_t-j*100, 0]
+    node_z = temp[j*100:, 2]
+    node_xz = torch.matmul(node_x, node_z)
+    node_mean_xz = torch.mean(node_xz)
+    node_correlation.append(node_mean_xz)
+
+    return node_correlation
+
+
+
+# def compute_correlation(hyper_params):
+#     tau, t = hyper_params
+#     print(tau, t)
+
+#     t_eval_point = torch.arange(0, t, 2)
+#     tau_eval_point = torch.arange(0, t+tau, 2)
+#     init = torch.randn(3)
+
+#     # z component for model(t)
+#     z = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8)[0, 2]
+#     # x component for model(t+tau)
+#     x = torchdiffeq.odeint(lorenz, init, tau_eval_point, method='rk4', rtol=1e-8)[0, 0]
+#     res = x*z
+#     #print(res, np.array(res).shape)
+
+#     return res
+
+
+
+def plot_correlation(dyn_sys, tau, val, node_val):
+    fig, ax = subplots(figsize=(36,12))
+    ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=3, alpha=0.6)
+    ax.semilogy(tau, node_val, color="coral", marker='o', linewidth=3, alpha=0.6)
+
+    # ax.xaxis.set_tick_params(labelsize=24)
+    # ax.yaxis.set_tick_params(labelsize=24)
+    #xlim(0, tau[-1])
+    #ylim(-10, 10)
+    ax.tick_params(labelsize=24)
+    ax.legend(["rk4", "Neural ODE"], size=24)
+
+    path = '../plot/'+'correlation'+'.svg'
+    fig.savefig(path, format='svg', dpi=400)
+    return
+
+
+
 
 if __name__ == '__main__':
 
@@ -358,7 +501,7 @@ if __name__ == '__main__':
 
     #----- test bifurcation plot -----#
 
-    # 1. initialize
+    '''# 1. initialize
     r_range=200
     r = np.arange(0, r_range, 0.1) # range of parameter rho
     n = range(100) # num of new initial condition
@@ -393,7 +536,35 @@ if __name__ == '__main__':
             print("ergodic at rho=", r_axis[i])
             ergodic_point.append([r_axis[i], z_maxes[i+10]])
     np.savetxt('../test_result/expt_lorenz/'+ "fixed_point.csv", np.asarray(fixed_point), delimiter=",")
-    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")
+    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")'''
+
+
+    # ----- correlation plot ----- #
+    # corr_plot()
+    
+    #1. initialize
+    tau = torch.arange(0, 300, 1)
+    index_list = range(len(tau))
+
+    # # 2. run parallel
+    with multiprocessing.Pool(processes=500) as pool:
+        res = pool.map(corr_plot_rk4, index_list)
+        # node_res = pool.map(corr_plot_node, index_list)
+        val = np.array(res)
+        # node_val = np.array(node_res)
+        print("res shape", val.shape)
+        
+    node_res = []
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    for i in range(len(tau)):
+        node_corr = corr_plot_node(device, i)
+        node_res.append(node_corr)
+    node_val = np.array(node_res)
+    print("res node shape", node_val.shape)
+    print("val", node_val)
+        
+
+    plot_correlation("lorenz", tau, rk4_val, node_val)
     
 
 

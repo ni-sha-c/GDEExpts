@@ -15,7 +15,6 @@ from examples.Lorenz_periodic import *
 from examples.Lorenz import *
 from examples.Sin import *
 from examples.Tent_map import *
-sys.path.append('..')
 
 
 def simulate(dyn_system, ti, tf, init_state, time_step):
@@ -138,9 +137,8 @@ def create_iterables(dataset, batch_size):
     return train_iter, test_iter
 
 
-def lyapunov_loss(true_lyapunov, node_lyapunov, node_y, true_y):
+def lyapunov_loss(true_lyapunov, node_lyapunov, output_loss):
     lyapunov_loss = torch.abs(true_lyapunov - node_lyapunov)
-    output_loss = torch.mean((node_y - true_y) ** 2)
     
     total_loss = lyapunov_loss + output_loss
     return total_loss
@@ -153,6 +151,7 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
     optimizer = define_optimizer(optim_name, model, lr, weight_decay)
     X, Y, X_test, Y_test = dataset
+    true_lyapunov = torch.tensor([0.906, 0, -14.572]).to(device)
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -192,9 +191,15 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
             y_pred = model(X).to(device)
 
             optimizer.zero_grad()
-            loss = criterion(y_pred, Y)
-            train_loss = loss.item()
-            loss.backward()
+            output_loss = criterion(y_pred, Y)
+            cur_J = test_jacobian(device, y_pred, "NODE", 0.01, "AdamW", [lorenz, 3], "lorenz", model)
+            node_lyapunov = torch.linalg.eig(cur_J)
+            node_lyapunov = node_lyapunov[0].clone()
+            print("nl", node_lyapunov)
+            node_lyapunov = torch.tensor(node_lyapunov[0])
+            final_loss = lyapunov_loss(true_lyapunov, node_lyapunov, output_loss.item())
+            train_loss = final_loss
+            final_loss.backward()
             optimizer.step()
 
             # leave it for debug purpose for now, and remove it
@@ -214,6 +219,41 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
 
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist
 
+
+
+
+
+def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys, model):
+    ''' Compute Jacobian Matrix of rk4 or Neural ODE 
+            args:   x0 = 3D tensor of initial point 
+            method: "NODE" or any other time integrator '''
+
+    x0 = x0.to(device).double()
+    #print("initial point: ", x0)
+    t_eval_point = torch.linspace(0, time_step, 2).to(device)
+    dyn_sys_func, dim = dyn_sys_info
+
+
+    # jacobian_node
+    if method == "NODE":
+        # Load the model
+        model.eval()
+        node_fixed_point = model(x0)
+        #print("fixed point for node?: ", node_fixed_point)
+        cur_J = torch.squeeze(torch.autograd.functional.jacobian(model, x0)).clone().detach()[-1, :, -1, :]
+
+    # jacobian_rk4
+    else:
+        fixed_point = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
+        print("fixed point?: ", fixed_point(x0)[1])
+        cur_J = F.jacobian(fixed_point, x0)[1]
+    
+    jac_2 = torch.matmul(cur_J, cur_J.T)
+    #print(method, cur_J)
+    #print("eigenvalue: ", torch.linalg.eig(cur_J))
+    #print("eigenvalue of J^2: ", torch.linalg.eig(jac_2), "\n")
+    #print("J*u=", torch.matmul(cur_J, u.to(device)))
+    return jac_2
 
 
 def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_name):
