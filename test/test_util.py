@@ -154,36 +154,39 @@ def compute_lorenz_bif(hyper_params):
     R, ni = hyper_params
     print(R, ni)
     # range of time
-    tf = 50
+    tf = 100 # from 50 to 100..!
     time_step = 0.001
-    t = np.arange(0, tf, time_step)  # time range # 50
+    t = torch.arange(0, tf, time_step)  # time range # 50
     T = len(t)
     # transition_phase
-    trans_t = 30000
+    trans_t = 40000
 
     # initialize solution arrays
-    xs, ys, zs = (np.empty(T+ 1) for i in range(3))
+    # xs, ys, zs = (np.empty(T+ 1) for i in range(3))
     # initial values x0,y0,z0 for the system
-    z_maxes, z_mins = ([] for i in range(2))
 
-    xs[0], ys[0], zs[0] = torch.rand(3) * 10 #np.random.rand(3)
+    # xs[0], ys[0], zs[0] = torch.rand(3) * 10 #np.random.rand(3)
     # Find solution
-    for i in range(len(t)):
-        x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
-        xs[i + 1] = xs[i] + (x_dot * time_step)
-        ys[i + 1] = ys[i] + (y_dot * time_step)
-        zs[i + 1] = zs[i] + (z_dot * time_step)
+    # for i in range(len(t)):
+    #     x_dot, y_dot, z_dot = lorenz_system(xs[i], ys[i], zs[i], R)
+    #     xs[i + 1] = xs[i] + (x_dot * time_step)
+    #     ys[i + 1] = ys[i] + (y_dot * time_step)
+    #     zs[i + 1] = zs[i] + (z_dot * time_step)
+    init = torch.rand(3) * 10
+    res = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8)
+    xs, ys, zs = res[:, 0], res[:, 1], res[:, 2]
     # save global maximum
     z_maxes = np.max(zs[trans_t:])
     z_mins = np.min(zs[trans_t:])
-    #time_avg_max
+    # Time avg for 1 intial condition
+    time_avg = np.mean(zs[trans_t:]) 
 
-    res = [z_mins, z_maxes]
+    res = [z_mins, z_maxes, time_avg]
     return res
 
 
 
-def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, avg_min, avg_max, n):
+def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, n):
     ''' func: plot bifurcation plot for 3D system 
               while also checking ergodicity of system
               at certain rho value '''
@@ -192,8 +195,7 @@ def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, avg_min, avg_max, n):
     fig, ax = subplots(figsize=(36,12))
     ax.scatter(r, z_maxes, color=(0.25, 0.25, 0.25), s=1.5, alpha=0.5)
     ax.scatter(r, z_mins, color="lightgreen", s=1.5, alpha=0.5)
-    ax.plot(r, avg_max, color="lightcoral" ,alpha=0.7, linewidth=3)
-    ax.plot(r, avg_min, color="seagreen" ,alpha=0.7, linewidth=3)
+
     # Plot the bifurcation plot values for r = 24.74 as a dashed line
     # ax.plot(np.array([24.74, 24.74]), np.array([0, 150]), linestyle='--', color="lightgray")
     ax.xaxis.set_tick_params(labelsize=24)
@@ -204,6 +206,22 @@ def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, avg_min, avg_max, n):
     path = '../plot/'+'bifurcation_plot_new_'+str(n)+'.svg'
     fig.savefig(path, format='svg', dpi=400)
     return
+
+
+
+def plot_lorenz_time_avg(dyn_sys, r, time_avg, n):
+    fig, ax = subplots(figsize=(36,12))
+    ax.scatter(r, time_avg, color="darkgreen", s=50, alpha=0.3)
+
+    ax.xaxis.set_tick_params(labelsize=24)
+    ax.yaxis.set_tick_params(labelsize=24)
+    xlim(0, r_range)
+    ylim(0, 200)
+
+    time_avg_path = '../plot/'+'time_avg_plot_new_'+str(n)+'.svg'
+    fig.savefig(time_avg_path, format='svg', dpi=400)
+    return
+
 
 
 
@@ -421,8 +439,6 @@ def plot_correlation(dyn_sys, tau, val, node_val):
     ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=3, alpha=0.6)
     ax.semilogy(tau, node_val, color="slateblue", marker='o', linewidth=3, alpha=0.6)
 
-    # ax.xaxis.set_tick_params(labelsize=24)
-    # ax.yaxis.set_tick_params(labelsize=24)
     #xlim(0, tau[-1])
     #ylim(-10, 10)
     ax.tick_params(labelsize=24)
@@ -456,20 +472,17 @@ if __name__ == '__main__':
     with multiprocessing.Pool(processes=500) as pool:
         res = pool.map(compute_lorenz_bif, param_list)
         res = np.array(res)
-        z_mins, z_maxes = res[:, 0], res[:, 1]
+        z_mins, z_maxes, time_avg = res[:, 0], res[:, 1], res[:, 2]
     
     # 3. create plot
     print("creating plot... ")
-    time_avg_max = [np.mean(z_maxes[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
-    time_avg_min = [np.mean(z_mins[i:i+len(n)]) for i in range(0, len(z_maxes), 100)]
+    print(time_avg.shape)
     
-
     r_axis = [el for el in r for i in range(len(n))]
-    avg_min = [el for el in time_avg_min for i in range(len(n))]
-    avg_max = [el for el in time_avg_max for i in range(len(n))]
-    r_axis, avg_min, avg_max = np.array(r_axis), np.array(avg_min), np.array(avg_max)
+    r_axis, time_avg = np.array(r_axis), np.array(time_avg)
     print(len(n))
-    plot_lorenz_bif("lorenz", r_axis, z_mins, z_maxes, avg_min, avg_max, len(n))
+    plot_lorenz_bif("lorenz", r_axis, z_mins, z_maxes, len(n))
+    plot_lorenz_time_avg("lorenz", r_axis, time_avg, len(n))
 
     # 4. Check property
     fixed_point = []

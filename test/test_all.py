@@ -37,10 +37,10 @@ if __name__ == '__main__':
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=5e-4)
     parser.add_argument("--num_epoch", type=int, default=20000)
-    parser.add_argument("--integration_time", type=int, default=180)
+    parser.add_argument("--integration_time", type=int, default=300)
     parser.add_argument("--num_train", type=int, default=10000)
     parser.add_argument("--num_test", type=int, default=7500)
-    parser.add_argument("--tran_state", type=int, default=100)
+    parser.add_argument("--num_trans", type=int, default=10000)
     parser.add_argument("--iters", type=int, default=5*(10**4))
     parser.add_argument("--minibatch", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=500)
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     parser.add_argument("--dyn_sys", default="lorenz", choices=DYNSYS_MAP.keys())
 
     args = parser.parse_args()
-    dyn_sys_info = DYNSYS_MAP[args.dyn_sys]
-    dyn_sys_func, dim = dyn_sys_info
+    dyn_sys_func, dim = define_dyn_sys(args.dyn_sys)
+    dyn_sys_info = [dyn_sys_func, dim]
     print("args: ", args)
     print("dyn_sys_func: ", dyn_sys_func)
 
@@ -57,7 +57,6 @@ if __name__ == '__main__':
     x0 = torch.randn(dim)
     x_multi_0 = torch.randn(dim)
     print("initial point:", x_multi_0)
-    x1 = torch.tensor([0.1, 0.1, 0.1]).double()
 
     # Initialize Model and Dataset Parameters
     criterion = torch.nn.MSELoss()
@@ -66,16 +65,15 @@ if __name__ == '__main__':
 
     # Generate Training/Test/Multi-Step Prediction Data
     traj = simulate(dyn_sys_func, 0, args.integration_time, x0, args.time_step)
-    #longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
-    longer_traj = simulate(dyn_sys_func, 0, real_time, x1, args.time_step)
-    multistep_traj = longer_traj[args.tran_state:]
-    dataset = create_data(traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.tran_state)
+    longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    multistep_traj = longer_traj[args.num_trans:]
+    dataset = create_data(traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
      
     # Train the model, return node
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(args.dyn_sys, m, device, dataset, multistep_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.tran_state, minibatch=args.minibatch, batch_size=args.batch_size)
+    pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(args.dyn_sys, m, device, dataset, multistep_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, minibatch=args.minibatch, batch_size=args.batch_size)
 
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
@@ -84,9 +82,11 @@ if __name__ == '__main__':
     # Save Trained Model
     path = "../test_result/expt_"+str(args.dyn_sys)+"/"+args.optim_name+"/"+str(args.time_step)+'/'+'model.pt'
     torch.save(m.state_dict(), path)
+    print("Saved new model!")
 
     # Save Training/Test Loss
-    np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"training_loss.csv", np.asarray(loss_hist), delimiter=",")
+    loss_hist = torch.stack(loss_hist)
+    np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"training_loss.csv", np.asarray(loss_hist.detach().cpu()), delimiter=",")
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE

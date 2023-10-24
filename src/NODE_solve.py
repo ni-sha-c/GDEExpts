@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
+import torch.autograd.functional as F
 import torch.optim as optim
 import torchdiffeq
 from scipy import stats
 import numpy as np
 from matplotlib.pyplot import *
+import multiprocessing
 
 from .NODE import *
 import sys
@@ -123,6 +125,19 @@ def define_optimizer(optim_name, model, lr, weight_decay):
 
 
 
+def define_dyn_sys(dyn_sys):
+    DYNSYS_MAP = {'sin' : [sin, 1],
+                  'tent_map' : [tent_map, 1],
+                  'brusselator' : [brusselator, 2],
+                  'lorenz_periodic' : [lorenz_periodic, 3],
+                  'lorenz' : [lorenz, 3]}
+    dyn_sys_info = DYNSYS_MAP[dyn_sys]
+    dyn_sys_func, dim = dyn_sys_info
+
+    return dyn_sys_func, dim
+
+
+
 def create_iterables(dataset, batch_size):
     X, Y, X_test, Y_test = dataset
 
@@ -137,11 +152,52 @@ def create_iterables(dataset, batch_size):
     return train_iter, test_iter
 
 
-def lyapunov_loss(true_lyapunov, node_lyapunov, output_loss):
-    lyapunov_loss = torch.abs(true_lyapunov - node_lyapunov)
-    
-    total_loss = lyapunov_loss + output_loss
+def jacobian_loss(True_J, cur_model_J, output_loss):
+    reg_param = 1.0
+
+    # jac_loss = reg_param * torch.abs(True_J - cur_model_J)
+    # print("jac_loss: ", jac_loss)
+    # print("output_loss: ", output_loss)
+    # sum_loss = jac_loss + output_loss
+    # # try torch.mean
+    # total_loss = torch.sqrt(torch.norm(sum_loss))
+
+    # jac_loss = reg_param * torch.norm(True_J - cur_model_J)
+    # sum_loss = jac_loss + output_loss
+    # # try torch.mean
+    # total_loss = torch.sqrt(sum_loss)
+    print("True_J", True_J)
+    print("cur_model_J", cur_model_J)
+    diff_jac = True_J - cur_model_J
+    norm_diff_jac = torch.norm(diff_jac)
+    jac_loss = torch.sqrt(norm_diff_jac)
+    total_loss = reg_param * jac_loss + output_loss
+    # try torch.mean
+
     return total_loss
+
+
+
+def jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node):
+
+    dyn_sys_f, dim = define_dyn_sys(dyn_sys)
+
+    with multiprocessing.Pool(processes=20) as pool:
+        results = pool.map(single_jacobian, [(dyn_sys_f, model, x, t_eval_point, device, node) for x in X])
+
+    return results
+
+def single_jacobian(args):
+    '''Compute Jacobian of dyn_sys
+    Param:  '''
+    dyn_sys_f, model, x, t_eval_point, device, node = args
+
+    if node == True:
+        jac = torch.squeeze(F.jacobian(model, x))
+    else:
+        jac = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_f, x, t_eval_point, method="rk4"), x)[1]
+    
+    return jac
 
 
 
@@ -151,7 +207,21 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
     optimizer = define_optimizer(optim_name, model, lr, weight_decay)
     X, Y, X_test, Y_test = dataset
-    true_lyapunov = torch.tensor([0.906, 0, -14.572]).to(device)
+    X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
+    num_train = X.shape[0]
+    multiprocessing.set_start_method('spawn')
+    
+
+    # Compute True Jacobian
+    t_eval_point = torch.linspace(0, time_step, 2).to(device)
+    #True_J = torch.zeros(num_train, 3, 3).to(device)
+    # for i in range(num_train):
+    #     x0 = X[i].double()
+    #     True_J[i] = F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4"), x0)[1]
+    True_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=False) # 10000 x 3 x 3
+    True_J = torch.stack(True_J)
+    print(True_J.shape)
+    print("Finished Computing True Jacobian")
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -166,7 +236,6 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
             for xk, yk in train_iter:
                 xk = xk.to(device) # [batch size,3]
                 yk = yk.to(device)
-
                 output = model(xk)
 
                 # save predicted node feature for analysis
@@ -185,15 +254,16 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
             true_train.append(y_true.detach().cpu().numpy())
 
         elif minibatch == False:
-            X = X.to(device)
-            Y = Y.to(device)
 
             y_pred = model(X).to(device)
+            #cur_model_J = torch.squeeze(F.jacobian(model, X))
+            cur_model_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=True)
 
             optimizer.zero_grad()
-            loss = criterion(y_pred, Y)
-            train_loss = loss.item()
-            loss.backward()
+            MSE_loss = criterion(y_pred, Y)
+            cur_model_J = torch.stack(cur_model_J)
+            train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss)
+            train_loss.backward()
             optimizer.step()
 
             # leave it for debug purpose for now, and remove it
@@ -201,7 +271,7 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
             true_train.append(Y.detach().cpu().numpy())
         
         loss_hist.append(train_loss)
-        print(i, train_loss)
+        print(i, MSE_loss.item(), train_loss.item())
 
         ##### test one_step #####
         pred_test, test_loss = evaluate(dyn_sys, model, X_test, Y_test, device, criterion, i, optim_name)
@@ -215,57 +285,19 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
 
 
 
-
-
-def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys, model):
-    ''' Compute Jacobian Matrix of rk4 or Neural ODE 
-            args:   x0 = 3D tensor of initial point 
-            method: "NODE" or any other time integrator '''
-
-    x0 = x0.to(device).double()
-    #print("initial point: ", x0)
-    t_eval_point = torch.linspace(0, time_step, 2).to(device)
-    dyn_sys_func, dim = dyn_sys_info
-
-
-    # jacobian_node
-    if method == "NODE":
-        # Load the model
-        model.eval()
-        node_fixed_point = model(x0)
-        #print("fixed point for node?: ", node_fixed_point)
-        cur_J = torch.squeeze(torch.autograd.functional.jacobian(model, x0)).clone().detach()[-1, :, -1, :]
-
-    # jacobian_rk4
-    else:
-        fixed_point = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
-        print("fixed point?: ", fixed_point(x0)[1])
-        cur_J = F.jacobian(fixed_point, x0)[1]
-    
-    jac_2 = torch.matmul(cur_J, cur_J.T)
-    #print(method, cur_J)
-    #print("eigenvalue: ", torch.linalg.eig(cur_J))
-    #print("eigenvalue of J^2: ", torch.linalg.eig(jac_2), "\n")
-    #print("J*u=", torch.matmul(cur_J, u.to(device)))
-    return jac_2
-
-
 def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_name):
 
   with torch.no_grad():
     model.eval()
 
-    X = X_test.to(device)
-    Y = Y_test.to(device)
-
     # calculating outputs again with zeroed dropout
-    y_pred_test = model(X)
+    y_pred_test = model(X_test)
 
     # save predicted node feature for analysis
     pred_test = y_pred_test.detach().cpu()
-    Y = Y.detach().cpu()
+    Y_test = Y_test.detach().cpu()
 
-    test_loss = criterion(pred_test, Y).item()
+    test_loss = criterion(pred_test, Y_test).item()
 
   return pred_test, test_loss
 
@@ -283,11 +315,11 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
     model.double()
 
     # initialize X
-    print(true_traj[0])
-    X = true_traj[0].to(device)
+    print(true_traj[tran_state])
+    X = true_traj[tran_state].to(device)
 
     # calculating outputs 
-    for i in range(num_data):
+    for i in range(num_data-tran_state):
         pred_traj[i] = X # shape [3]
         cur_pred = model(X.double())
         X = cur_pred
@@ -323,7 +355,6 @@ def plot_multi_step_traj_3D(dyn_sys, optim_n, test_t, pred_traj, true_traj):
     plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
     plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
 
-    #plt.axvspan(25, 50, color='gray', alpha=0.2, label='Outside Training')
     xlabel('t')
     ylabel('y')
     legend(loc='best')
@@ -341,7 +372,6 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     one_iter = int(1/time_step)
     test_x = torch.arange(0, integration_time, time_step)[tran_state:]
     #test_x = torch.arange(0, integration_time, time_step)
-    error_x = np.zeros(test_x.shape)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
@@ -358,10 +388,8 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     if dyn_sys == "lorenz":
         # Find the index for tangent slope
         max_index = torch.argmax(torch.tensor(log_e_error[0:one_iter]))
-        MIE_start = one_iter*15
-        max_index_end = torch.argmax(torch.tensor(log_e_error[MIE_start:one_iter*20]))# +MIE_start
-        print("max start index", max_index)
-        print("max end index", max_index_end)
+        MIE_start = one_iter*20
+        max_index_end = torch.argmax(torch.tensor(log_e_error[MIE_start:one_iter*30]))
 
         lin_x = test_x[max_index:max_index_end+MIE_start+1]
         print("lin x:", lin_x)
@@ -374,16 +402,16 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
         print("slope: ", np.abs(y_tangent[0] - y_tangent[-1])/(lin_x[-1] - lin_x[0]))
 
     # Plot semilogy error
-    fig, ax = subplots()
-    ax.plot(test_x, log_e_error, linewidth=2)
+    fig, ax = subplots(figsize=(24, 12))
+    ax.plot(test_x, log_e_error, linewidth=1, alpha=0.9)
     if dyn_sys == "lorenz":
-        ax.plot(lin_x, y_tangent)
+        ax.plot(lin_x, y_tangent, linewidth=2, alpha=0.9)
     ax.grid(True)
-    ax.set_xlabel(r"$n \times \delta t$", fontsize=10)
-    ax.set_ylabel(r"$log |x(t) - x\_pred(t)|$", fontsize=10)
+    ax.set_xlabel(r"$n \times \delta t$", fontsize=24)
+    ax.set_ylabel(r"$log |x(t) - x\_pred(t)|$", fontsize=24)
     ax.legend(['x component', 'approx slope'])
-    ax.xaxis.set_tick_params(labelsize=10)
-    ax.yaxis.set_tick_params(labelsize=10)
+    ax.xaxis.set_tick_params(labelsize=24)
+    ax.yaxis.set_tick_params(labelsize=24)
     tight_layout()
     #ax.set_title(r"log |x(t) - x_pred(t)|"+" After {num_epoch} Epochs")
     fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)

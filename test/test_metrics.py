@@ -260,14 +260,18 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             x0 = true_traj[i].to(device).double()
             cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
-            if i % 10000 == 0:
-                print("jacobian_node", J)
+
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())
 
             lyap_exp.append(np.log(abs(R.diagonal())))
             U = torch.tensor(Q) #new axes after iteration
 
+            if i % 10000 == 0:
+                print("jacobian_node", cur_J)
+                print("R:", R)
+                print("cur_lyap_exp", np.log(abs(R.diagonal())))
+            
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
     else:
@@ -277,14 +281,17 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             x0 = true_traj[i].double()
             cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
             J = torch.matmul(cur_J, U)
-            if i % 10000 == 0:
-                print("jacobian_rk4", J)
 
             # QR Decomposition for J
             Q, R = np.linalg.qr(J.clone().detach().numpy())
 
             lyap_exp.append(np.log(abs(R.diagonal())))
             U = torch.tensor(Q).double() #new axes after iteration
+
+            if i % 10000 == 0:
+                print("jacobian_rk4", cur_J)
+                print("R:", R)
+                print("cur_lyap_exp", np.log(abs(R.diagonal())))
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
     
@@ -293,7 +300,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
 
 
-def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys, u):
+def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys):
     ''' Compute Jacobian Matrix of rk4 or Neural ODE 
             args:   x0 = 3D tensor of initial point 
             method: "NODE" or any other time integrator '''
@@ -311,66 +318,43 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
         path = "../test_result/expt_"+dyn_sys+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(path))
         model.eval()
-        node_fixed_point = model(x0)
-        print("fixed point for node?: ", node_fixed_point)
+        #node_fixed_point = model(x0)
+        #print("fixed point for node?: ", node_fixed_point)
         cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
 
     # jacobian_rk4
     else:
-        fixed_point = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
-        print("fixed point?: ", fixed_point(x0)[1])
-        cur_J = F.jacobian(fixed_point, x0)[1]
+        rk4 = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
+        #print("fixed point?: ", rk4(x0)[1])
+        cur_J = F.jacobian(rk4, x0)[1]
     
     jac_2 = torch.matmul(cur_J, cur_J.T)
-    print(method, cur_J)
-    print("eigenvalue: ", torch.linalg.eig(cur_J))
-    print("eigenvalue of J^2: ", torch.linalg.eig(jac_2), "\n")
-    #print("J*u=", torch.matmul(cur_J, u.to(device)))
+    #print(method, cur_J)
+    eig = torch.linalg.eigvals(cur_J)
+    print("eigenvalue: ", eig)
+    print("eigenvalue of J^2: ", torch.linalg.eigvals(jac_2), "\n")
+
     return
     
 
 
 
 
-# def long_time_avg(pred_result, true_result):
-#     ''' For Calculating Long Time Average of System.
-#         Example call: long_time_avg('./expt_lorenz/AdamW/0.01/pred_traj.csv', './expt_lorenz/AdamW/0.01/true_traj.csv') '''
-    
-#     pred = np.loadtxt(pred_result, delimiter=",", dtype=float)
-#     true = np.loadtxt(true_result, delimiter=",", dtype=float)
-
-#     print(pred[0:5, 2])
-#     print(pred[1000:1005, 2])
-
-#     print(np.mean(pred[:,2]))
-#     print(np.mean(true[:,2]))
-
-#     return
-
-
-
-
-
 ##### ----- test run ----- #####
 if __name__ == '__main__':
-    torch.set_printoptions(sci_mode=True, precision=5)
-    #x = torch.randn(3)
-    x = torch.tensor([0,0,0]).double()
-    t_eval_point = torch.arange(0,500,1e-2)
-    true_traj = torchdiffeq.odeint(lorenz_periodic, x, t_eval_point, method='rk4', rtol=1e-8)[1000:] #transition phase
-    #eps = 1e-6
-    #LE_rk4, u = lyap_exps("lorenz", [lorenz, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
-    u = torch.tensor([[9.56575e-01, 7.04911e-02, 3.91613e-02],
-       [-1.08595e+00, 1.34883e+00, -4.01619e-01],
-       [-4.57080e-01, 2.73178e-02, 7.43724e-01]]).double()
-    #print("u:", u)
-    #u = torch.tensor(ortho_group.rvs(3))
+    torch.set_printoptions(sci_mode=False, precision=5)
+
+    # ----- Test Jacobian ----- #
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    test_jacobian(device, x, "NODE", 0.01, "AdamW", [lorenz_periodic, 3], "lorenz_periodic", u)
-    test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz_periodic, 3], "lorenz_periodic", u)
+    x = torch.randn(3)
+    #x = torch.tensor([0,0,0]).double()
+    #test_jacobian(device, x, "NODE", 0.01, "AdamW", [lorenz, 3], "lorenz")
+    test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz")
 
-    # compute lyapunov exponent
+    # ----- compute lyapunov exponent ----- #
 
+    # t_eval_point = torch.arange(0,500,1e-2)
+    # true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8)[40000:] #transition phase
     # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
     # LE_node, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
     # print("NODE: ", LE_node)
