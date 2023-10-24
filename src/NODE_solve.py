@@ -155,17 +155,6 @@ def create_iterables(dataset, batch_size):
 def jacobian_loss(True_J, cur_model_J, output_loss):
     reg_param = 1.0
 
-    # jac_loss = reg_param * torch.abs(True_J - cur_model_J)
-    # print("jac_loss: ", jac_loss)
-    # print("output_loss: ", output_loss)
-    # sum_loss = jac_loss + output_loss
-    # # try torch.mean
-    # total_loss = torch.sqrt(torch.norm(sum_loss))
-
-    # jac_loss = reg_param * torch.norm(True_J - cur_model_J)
-    # sum_loss = jac_loss + output_loss
-    # # try torch.mean
-    # total_loss = torch.sqrt(sum_loss)
     print("True_J", True_J)
     print("cur_model_J", cur_model_J)
     diff_jac = True_J - cur_model_J
@@ -195,7 +184,7 @@ def single_jacobian(args):
     if node == True:
         jac = torch.squeeze(F.jacobian(model, x))
     else:
-        jac = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_f, x, t_eval_point, method="rk4"), x)[1]
+        jac = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_f, x, t_eval_point, method="rk4"), x, vectorize=True)[1]
     
     return jac
 
@@ -217,7 +206,14 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     #True_J = torch.zeros(num_train, 3, 3).to(device)
     # for i in range(num_train):
     #     x0 = X[i].double()
-    #     True_J[i] = F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4"), x0)[1]
+
+    # func = lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4")
+    # result = func(X.view(3, 10000))
+    # print("func", result)
+    # print(result[0])
+    # print(result.shape)
+    # True_J = F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4"), X, vectorize=True)
+    # print("tj:", True_J)
     True_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=False) # 10000 x 3 x 3
     True_J = torch.stack(True_J)
     print(True_J.shape)
@@ -256,8 +252,11 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
         elif minibatch == False:
 
             y_pred = model(X).to(device)
-            #cur_model_J = torch.squeeze(F.jacobian(model, X))
-            cur_model_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=True)
+            cur_model_J = F.jacobian(model, X[:100], vectorize=True)
+            cur_model_J = cur_model_J.view(100, 3, 3)
+            print("vec", cur_model_J)
+            print("vec", cur_model_J.shape)
+            #cur_model_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=True)
 
             optimizer.zero_grad()
             MSE_loss = criterion(y_pred, Y)
@@ -315,11 +314,11 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
     model.double()
 
     # initialize X
-    print(true_traj[tran_state])
-    X = true_traj[tran_state].to(device)
+    print(true_traj[0])
+    X = true_traj[0].to(device)
 
     # calculating outputs 
-    for i in range(num_data-tran_state):
+    for i in range(num_data):
         pred_traj[i] = X # shape [3]
         cur_pred = model(X.double())
         X = cur_pred
@@ -370,8 +369,8 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
                 Y = true_traj (csv file) '''
 
     one_iter = int(1/time_step)
-    test_x = torch.arange(0, integration_time, time_step)[tran_state:]
-    #test_x = torch.arange(0, integration_time, time_step)
+    #test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    test_x = torch.arange(0, integration_time, time_step)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
