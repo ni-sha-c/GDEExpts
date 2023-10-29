@@ -252,16 +252,14 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
         elif minibatch == False:
 
             y_pred = model(X).to(device)
-            cur_model_J = F.jacobian(model, X[:100], vectorize=True)
-            cur_model_J = cur_model_J.view(100, 3, 3)
-            print("vec", cur_model_J)
-            print("vec", cur_model_J.shape)
+            cur_model_J = F.jacobian(model, X[-1], vectorize=True)
+
             #cur_model_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=True)
 
             optimizer.zero_grad()
             MSE_loss = criterion(y_pred, Y)
-            cur_model_J = torch.stack(cur_model_J)
-            train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss)
+            #cur_model_J = torch.stack(cur_model_J)
+            train_loss = jacobian_loss(True_J[-1], cur_model_J, MSE_loss)
             train_loss.backward()
             optimizer.step()
 
@@ -369,8 +367,8 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
                 Y = true_traj (csv file) '''
 
     one_iter = int(1/time_step)
-    #test_x = torch.arange(0, integration_time, time_step)[tran_state:]
-    test_x = torch.arange(0, integration_time, time_step)
+    test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    #test_x = torch.arange(0, integration_time, time_step)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
