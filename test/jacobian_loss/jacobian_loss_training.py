@@ -193,12 +193,12 @@ def define_dyn_sys(dyn_sys):
 """### Define Jacobian Loss"""
 
 def jacobian_loss(True_J, cur_model_J, output_loss):
-    reg_param = 0.2
+    reg_param = 0.09
 
     #print("True_J", True_J)
     #print("cur_model_J", cur_model_J)
     diff_jac = True_J - cur_model_J
-    norm_diff_jac = torch.sqrt(torch.norm(diff_jac))
+    norm_diff_jac = torch.norm(diff_jac)
 
     total_loss = reg_param * norm_diff_jac + output_loss
 
@@ -391,24 +391,25 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
 def plot_multi_step_traj_3D(dyn_sys, optim_n, test_t, pred_traj, true_traj):
     #plot the x, y, z
 
-    fig, axs = subplots(2, figsize=(18, 6), sharex=True)
+    fig, axs = subplots(2, figsize=(18, 9), sharex=True)
     fig.suptitle("Multi-Step Predicted Trajectory of Lorenz", fontsize=24)
-    axs[0].plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', alpha=0.6)
-    axs[0].plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', alpha=0.6)
-    axs[0].plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', alpha=0.6)
+    axs[0].plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', alpha=0.7)
+    axs[0].plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', alpha=0.7)
+    axs[0].plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', alpha=0.7)
     axs[0].grid(True)
-    axs[0].legend(loc='best')
-    axs[0].set_ylabel('y')
+    axs[0].legend(loc='best', fontsize=20)
+    axs[0].set_ylabel(r'$\Phi_{NODE}(t)$', fontsize=24)
     axs[0].tick_params(labelsize=24)
 
-    axs[1].plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-    axs[1].plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-    axs[1].plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+    axs[1].plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.7)
+    axs[1].plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.7)
+    axs[1].plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.7)
     axs[1].grid(True)
+    axs[1].legend(loc='best', fontsize=20)
+    axs[1].tick_params(labelsize=24)
+    axs[1].set_ylabel(r'$\Phi_{rk4}(t)$', fontsize=24)
 
-    xlabel('t')
-    ylabel('y')
-    legend(loc='best')
+    xlabel('t', fontsize=24)
     tight_layout()
     savefig('_multi_step_pred.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
 
@@ -429,19 +430,19 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
 
     # calculate error
     error_x = np.abs(pred[:, 0] - Y[:, 0]) # np.linalg.norm
-    slope = [np.exp(0.9*x) for x in test_x[:1000]]
+    slope = [np.exp(0.9*x)+error_x[10] for x in test_x[:500]]
     slope = np.array(slope)
 
     # Plot semilogy error
     # log(e^0.9) = 2.459
     
     fig, ax = subplots(figsize=(24, 12))
-    ax.semilogy(test_x[1:], error_x[1:], linewidth=2, alpha=0.9, color="b")
-    ax.semilogy(test_x[1:1000], slope[1:], linewidth=2, ls="--", color="gray", alpha=0.9)
+    ax.semilogy(test_x[10:], error_x[10:], linewidth=2, alpha=0.9, color="b")
+    ax.semilogy(test_x[10:500], slope[10:], linewidth=2, ls="--", color="gray", alpha=0.9)
     ax.grid(True)
     ax.set_xlabel(r"$n \times \delta t$", fontsize=24)
-    ax.set_ylabel(r"$log |True_t - Pred_t|$", fontsize=24)
-    ax.legend(['x component', 'approx slope'])
+    ax.set_ylabel(r"$log |\Phi_{rk4}(t) - \Phi_{NODE}(t)|$", fontsize=24)
+    ax.legend(['x component', 'approx slope'], fontsize=20)
     ax.tick_params(labelsize=24)
     tight_layout()
     fig.savefig('error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
@@ -526,11 +527,11 @@ dyn_sys_func, dim = lorenz, 3
 time_step = 1e-2
 lr=5e-4
 weight_decay = 5e-4
-num_epoch = 2 #8000
+num_epoch = 10000
 integration_time = 100
-num_train = 3000 #3000
-num_test= 3000 #3000
-num_trans=1000
+num_train = 2000
+num_test= 2000
+num_trans= 0 #1000
 iters=5*(10**4)
 minibatch=False
 batch_size=500
