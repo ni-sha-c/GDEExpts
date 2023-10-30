@@ -462,7 +462,7 @@ if __name__ == '__main__':
 
 
     #----- test bifurcation plot -----#
-    # 1. initialize
+    '''# 1. initialize
     r_range=200
     r = np.arange(0, r_range, 0.1) # range of parameter rho
     n = range(100) # num of new initial condition
@@ -495,12 +495,12 @@ if __name__ == '__main__':
             print("ergodic at rho=", r_axis[i])
             ergodic_point.append([r_axis[i], z_maxes[i+10]])
     np.savetxt('../test_result/expt_lorenz/'+ "fixed_point.csv", np.asarray(fixed_point), delimiter=",")
-    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")
+    np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")'''
 
 
     # ----- correlation plot ----- #
     
-    '''#1. initialize
+    #1. initialize
     tau = torch.arange(0, 100, 1)
     index_list = range(len(tau))
     num_processes = 20 
@@ -517,7 +517,7 @@ if __name__ == '__main__':
         print("res shape", rk4_val.shape)
         
     # 3. plot
-    plot_correlation("lorenz", tau, rk4_val, node_val)'''
+    plot_correlation("lorenz", tau, rk4_val, node_val)
     
 
 

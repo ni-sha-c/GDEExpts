@@ -55,6 +55,7 @@ from matplotlib.pyplot import *
 import multiprocessing
 import torch
 import torch.nn as nn
+import pandas as pd
 
 # from numpy import *
 
@@ -243,11 +244,11 @@ class ODE_Lorenz(nn.Module):
     def __init__(self):
         super(ODE_Lorenz, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(3, 32 * 9),
+            nn.Linear(1, 32 * 9),
             nn.GELU(),
             nn.Linear(32 * 9, 64 * 9),
             nn.GELU(),
-            nn.Linear(64 * 9, 3)
+            nn.Linear(64 * 9, 1)
         )
         self.t = torch.linspace(0, 0.01, 2)
 
@@ -264,7 +265,7 @@ def solve_odefunc(odefunc, t, y0):
     final_state = solution[-1]
     return final_state
 
-y0 = torch.randn(3)
+y0 = torch.randn(1)
 t = torch.linspace(0, 0.01, 2)
 
 odefunc = ODE_Lorenz()
@@ -272,8 +273,7 @@ odefunc = ODE_Lorenz()
 ##### Sanity Check #####
 final_state = solve_odefunc(odefunc, t, y0)
 print("ODE state:", final_state)
-final_state = solve_odefunc(lorenz, t, y0)
-print("True state:", final_state)
+
 
 def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
 
@@ -289,9 +289,9 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
 
     ##### Change it to analytical Jacobian
-    True_J = torch.ones(num_train, 3, 3).to(device)
+    True_J = torch.ones(num_train, 1, 1).to(device)
     for i in range(num_train):
-        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=28.0, b=8/3)
+        True_J[i] = Jacobian_Matrix(X[i], sigma=10.0, r=28.0, b=8/3)
     print(True_J.shape)
     print("Finished Computing True Jacobian")
 
@@ -488,7 +488,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
         # load the saved model
         model = ODE_Lorenz().double()
-        path = 'model.pt'
+        path = 'model_f.pt'
         model.to(device)
         model.load_state_dict(torch.load(path), strict=False)
         model.eval()
@@ -575,25 +575,49 @@ real_time = iters * time_step
 print("real time: ", real_time)
 
 # Generate Training/Test/Multi-Step Prediction Data
-traj = simulate(dyn_sys_func, 0, integration_time, x0, time_step)
-multi_step_traj = simulate(dyn_sys_func, 0, real_time, x0, time_step)
-dataset = create_data(traj, n_train=num_train, n_test=num_test, n_nodes=dim, n_trans=num_trans)
+# traj = simulate(dyn_sys_func, 0, integration_time, x0, time_step)
+# multi_step_traj = simulate(dyn_sys_func, 0, real_time, x0, time_step)
+# dataset = create_data(traj, n_train=num_train, n_test=num_test, n_nodes=dim, n_trans=num_trans)
+df = pd.read_csv("coin_Bitcoin.csv")
+# Remove time part from 'Date' and set 'Date' as index
+
+df.set_index('Date', inplace=True)
+# Only want closing price for each day
+ada_prices = pd.DataFrame(df["Close"]).rename(columns={"Close": "Price"})
+# Get ADA date array
+timesteps = ada_prices.index.to_numpy()
+prices = ada_prices["Price"].to_numpy()
+# Create train and test splits the right way for time series data
+split_size = int(0.8 * len(prices)) # 80% train, 20% test
+
+# Create train data splits (everything before the split)
+# X, Y = timesteps[:split_size], prices[:split_size]
+X, Y = prices[0:split_size-1], prices[1:split_size]
+
+# Create test data splits (everything after the split)
+# X_test, Y_test = timesteps[split_size:], prices[split_size:]
+X_test, Y_test = prices[split_size-1:-1], prices[split_size:]
+
+dataset = [torch.tensor(X.astype(np.float64)), torch.tensor(Y.astype(np.float64)), torch.tensor(X_test.astype(np.float64)), torch.tensor(Y_test.astype(np.float64))]
+
+
 
 # Create model
 m = ODE_Lorenz().to(device)
+multi_step_traj = 0
 
 # Train the model, return node
 pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(dyn_sys, m, device, dataset, multi_step_traj, optim_name, criterion, num_epoch, lr, weight_decay, time_step, real_time, num_trans, minibatch=minibatch, batch_size=batch_size)
 print("train loss: ", loss_hist[-1])
 
 # save the model
-torch.save(m.state_dict(), "model.pt")
+torch.save(m.state_dict(), "model_f.pt")
 print("Saved new model!")
 
-test_multistep(dyn_sys, m, num_epoch, multi_step_traj, device, 20000, optim_name, lr, time_step, real_time, num_trans)
+# test_multistep(dyn_sys, m, num_epoch, multi_step_traj, device, 20000, optim_name, lr, time_step, real_time, num_trans)
 
 # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
-LE_node = lyap_exps("lorenz", [lorenz, 3], true_traj = multi_step_traj.to(device), iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
+LE_node = lyap_exps("lorenz", [lorenz, 1], true_traj = multi_step_traj.to(device), iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
 print(LE_node)
 
 
