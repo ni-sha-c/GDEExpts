@@ -229,13 +229,11 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
     return
 
 
-
 def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method):
     ''' Compute Lyapunov Exponents '''
 
     # Initialize parameter
-    dyn_sys_func = dyn_sys_info[0]
-    dim = dyn_sys_info[1]
+    dyn_sys_func, dim = dyn_sys_info
 
     # QR Method where U = tangent vector, V = regular system
     U = torch.eye(dim).double()
@@ -255,10 +253,15 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
         model.eval()
 
         for i in range(0, iters):
+            if i % 1000 == 0:
+                print(i)
 
             #update x0
             x0 = true_traj[i].to(device).double()
-            cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
+            t_eval_point = t_eval_point.to(device)
+            # cur_J = model(x0).clone().detach()
+            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
+            #print(cur_J)
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
 
             # QR Decomposition for J
@@ -267,11 +270,6 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             lyap_exp.append(np.log(abs(R.diagonal())))
             U = torch.tensor(Q) #new axes after iteration
 
-            if i % 10000 == 0:
-                print("jacobian_node", cur_J)
-                print("R:", R)
-                print("cur_lyap_exp", np.log(abs(R.diagonal())))
-            
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
     else:
@@ -288,15 +286,9 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             lyap_exp.append(np.log(abs(R.diagonal())))
             U = torch.tensor(Q).double() #new axes after iteration
 
-            if i % 10000 == 0:
-                print("jacobian_rk4", cur_J)
-                print("R:", R)
-                print("cur_lyap_exp", np.log(abs(R.diagonal())))
-
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
-    
-    return torch.tensor(LE), U
 
+    return torch.tensor(LE)
 
 
 
@@ -345,19 +337,19 @@ if __name__ == '__main__':
     torch.set_printoptions(sci_mode=False, precision=5)
 
     # ----- Test Jacobian ----- #
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    '''device = 'cuda' if torch.cuda.is_available() else 'cpu'
     x = torch.randn(3)
     #x = torch.tensor([0,0,0]).double()
     #test_jacobian(device, x, "NODE", 0.01, "AdamW", [lorenz, 3], "lorenz")
-    test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz")
+    test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz")'''
 
     # ----- compute lyapunov exponent ----- #
-
-    # t_eval_point = torch.arange(0,500,1e-2)
-    # true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8)[40000:] #transition phase
+    x = torch.randn(3)
+    t_eval_point = torch.arange(0,500,1e-2)
+    true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) #transition phase
     # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
-    # LE_node, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
-    # print("NODE: ", LE_node)
+    LE_node = lyap_exps("lorenz", [lorenz, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
+    print("NODE: ", LE_node)
     
     # LE_rk4, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
     # print("rk4 LE: ", LE_rk4)

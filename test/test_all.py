@@ -36,14 +36,15 @@ if __name__ == '__main__':
     parser.add_argument("--time_step", type=float, default=1e-2)
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=5e-4)
-    parser.add_argument("--num_epoch", type=int, default=20000)
-    parser.add_argument("--integration_time", type=int, default=300)
-    parser.add_argument("--num_train", type=int, default=10000)
-    parser.add_argument("--num_test", type=int, default=7500)
-    parser.add_argument("--num_trans", type=int, default=10000)
+    parser.add_argument("--num_epoch", type=int, default=10000) # 20000
+    parser.add_argument("--integration_time", type=int, default=100)
+    parser.add_argument("--num_train", type=int, default=3000)
+    parser.add_argument("--num_test", type=int, default=3000)
+    parser.add_argument("--num_trans", type=int, default=0) #10000
     parser.add_argument("--iters", type=int, default=5*(10**4))
     parser.add_argument("--minibatch", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=500)
+    parser.add_argument("--loss_type", default="Jacobian", choices=["Jacobian", "MSE"])
     parser.add_argument("--optim_name", default="AdamW", choices=["AdamW", "Adam", "RMSprop", "SGD"])
     parser.add_argument("--dyn_sys", default="lorenz", choices=DYNSYS_MAP.keys())
 
@@ -66,14 +67,16 @@ if __name__ == '__main__':
     # Generate Training/Test/Multi-Step Prediction Data
     traj = simulate(dyn_sys_func, 0, args.integration_time, x0, args.time_step)
     longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
-    multistep_traj = longer_traj[args.num_trans:]
     dataset = create_data(traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
      
     # Train the model, return node
-    pred_train, true_train, pred_test, loss_hist, test_loss_hist = train(args.dyn_sys, m, device, dataset, multistep_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, minibatch=args.minibatch, batch_size=args.batch_size)
+    if args.loss_type == "Jacobian":
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, minibatch=args.minibatch, batch_size=args.batch_size)
+    else:
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, minibatch=args.minibatch, batch_size=args.batch_size)
 
     print("train loss: ", loss_hist[-1])
     print("test loss: ", test_loss_hist[-1])
@@ -90,11 +93,11 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    LE_NODE, u = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE")
+    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE")
     print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
-    LE_rk4, u = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4")
+    LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4")
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||

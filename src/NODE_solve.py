@@ -87,23 +87,35 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
     return [X, Y, X_test, Y_test]
 
 
+def define_dyn_sys(dyn_sys):
+    DYNSYS_MAP = {'sin' : [sin, 1],
+                  'tent_map' : [tent_map, 1],
+                  'brusselator' : [brusselator, 2],
+                  'lorenz_periodic' : [lorenz_periodic, 3],
+                  'lorenz' : [lorenz, 3]}
+    dyn_sys_info = DYNSYS_MAP[dyn_sys]
+    dyn_sys_func, dim = dyn_sys_info
+
+    return dyn_sys_func, dim
+
+
 
 def create_NODE(device, dyn_sys, n_nodes, n_hidden, T):
     ''' Create Neural ODE based on dynamical system of our interest 
         '''
 
-    DYNSYS_MAP = {'sin' : ODEFunc_Sin,
-                  'tent_map' : ODEFunc_Tent,
-                  'brusselator' : ODEFunc_Brusselator,
-                  'lorenz_periodic' : ODEFunc_Lorenz_periodic,
-                  'lorenz' : ODEFunc_Lorenz}
-    ODEFunc = DYNSYS_MAP[dyn_sys]
+    DYNSYS_NN_MAP = {'sin' : ODE_Sin,
+                  'tent_map' : ODE_Tent,
+                  'brusselator' : ODE_Brusselator,
+                  'lorenz_periodic' : ODE_Lorenz_periodic,
+                  'lorenz' : ODE_Lorenz}
+    ODEFunc = DYNSYS_NN_MAP[dyn_sys]
     neural_func = ODEFunc(y_dim=n_nodes, n_hidden=n_hidden).to(device)
-    node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
+    # node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
 
-    m = nn.Sequential(
-        node).to(device)
-    return m
+    # m = nn.Sequential(
+    #     node).to(device)
+    return neural_func
 
 
 
@@ -125,19 +137,6 @@ def define_optimizer(optim_name, model, lr, weight_decay):
 
 
 
-def define_dyn_sys(dyn_sys):
-    DYNSYS_MAP = {'sin' : [sin, 1],
-                  'tent_map' : [tent_map, 1],
-                  'brusselator' : [brusselator, 2],
-                  'lorenz_periodic' : [lorenz_periodic, 3],
-                  'lorenz' : [lorenz, 3]}
-    dyn_sys_info = DYNSYS_MAP[dyn_sys]
-    dyn_sys_func, dim = dyn_sys_info
-
-    return dyn_sys_func, dim
-
-
-
 def create_iterables(dataset, batch_size):
     X, Y, X_test, Y_test = dataset
 
@@ -153,15 +152,12 @@ def create_iterables(dataset, batch_size):
 
 
 def jacobian_loss(True_J, cur_model_J, output_loss):
-    reg_param = 1.0
+    reg_param = 0.11
 
-    print("True_J", True_J)
-    print("cur_model_J", cur_model_J)
     diff_jac = True_J - cur_model_J
     norm_diff_jac = torch.norm(diff_jac)
-    jac_loss = torch.sqrt(norm_diff_jac)
-    total_loss = reg_param * jac_loss + output_loss
-    # try torch.mean
+
+    total_loss = reg_param * norm_diff_jac + output_loss
 
     return total_loss
 
@@ -189,8 +185,15 @@ def single_jacobian(args):
     return jac
 
 
+def Jacobian_Matrix(input, sigma, r, b):
+    '''Compute Jacobian Matrix'''
 
-def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
+    x, y, z = input
+    return torch.stack([torch.tensor([-sigma, sigma, 0]), torch.tensor([r - z, -1, -x]), torch.tensor([y, x, -b])])
+
+
+
+def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
 
     # Initialize
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
@@ -198,24 +201,13 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     X, Y, X_test, Y_test = dataset
     X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
     num_train = X.shape[0]
-    multiprocessing.set_start_method('spawn')
     
-
     # Compute True Jacobian
-    t_eval_point = torch.linspace(0, time_step, 2).to(device)
-    #True_J = torch.zeros(num_train, 3, 3).to(device)
-    # for i in range(num_train):
-    #     x0 = X[i].double()
+    t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
 
-    # func = lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4")
-    # result = func(X.view(3, 10000))
-    # print("func", result)
-    # print(result[0])
-    # print(result.shape)
-    # True_J = F.jacobian(lambda x: torchdiffeq.odeint(lorenz, x, t_eval_point, method="rk4"), X, vectorize=True)
-    # print("tj:", True_J)
-    True_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=False) # 10000 x 3 x 3
-    True_J = torch.stack(True_J)
+    True_J = torch.ones(num_train, 3, 3).to(device)
+    for i in range(num_train):
+        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=28.0, b=8/3)
     print(True_J.shape)
     print("Finished Computing True Jacobian")
 
@@ -251,27 +243,29 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
 
         elif minibatch == False:
 
-            y_pred = model(X).to(device)
-            cur_model_J = F.jacobian(model, X[-1], vectorize=True)
-
-            #cur_model_J = jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node=True)
+            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
 
             optimizer.zero_grad()
+            # MSE Output Loss
             MSE_loss = criterion(y_pred, Y)
-            #cur_model_J = torch.stack(cur_model_J)
-            train_loss = jacobian_loss(True_J[-1], cur_model_J, MSE_loss)
+            jacrev = torch.func.jacrev(model, argnums=1)
+
+            # Jacobian Diff Loss
+            compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
+            cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
+            train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss)
             train_loss.backward()
             optimizer.step()
 
             # leave it for debug purpose for now, and remove it
-            pred_train.append(y_pred.detach().cpu().numpy())
-            true_train.append(Y.detach().cpu().numpy())
+            # pred_train.append(y_pred.detach().cpu().numpy())
+            # true_train.append(Y.detach().cpu().numpy())
         
         loss_hist.append(train_loss)
         print(i, MSE_loss.item(), train_loss.item())
 
         ##### test one_step #####
-        pred_test, test_loss = evaluate(dyn_sys, model, X_test, Y_test, device, criterion, i, optim_name)
+        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
         test_loss_hist.append(test_loss)
 
         ##### test multi_step #####
@@ -282,19 +276,90 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
 
 
 
-def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_name):
+def MSE_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
+
+    # Initialize
+    pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
+    optimizer = define_optimizer(optim_name, model, lr, weight_decay)
+    X, Y, X_test, Y_test = dataset
+    X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
+    t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
+
+    for i in range(epochs): # looping over epochs
+        model.train()
+        model.double()
+
+        if minibatch == True:
+            train_iter, test_iter = create_iterables(dataset, batch_size=batch_size)
+            y_pred = torch.zeros(len(train_iter), batch_size, 3)
+            y_true = torch.zeros(len(train_iter), batch_size, 3)
+            k = 0
+
+            for xk, yk in train_iter:
+                xk = xk.to(device) # [batch size,3]
+                yk = yk.to(device)
+
+                output = model(xk)
+
+                # save predicted node feature for analysis
+                y_pred[k] = output
+                y_true[k] = yk
+                k += 1
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, y_true)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(y_true.detach().cpu().numpy())
+
+        elif minibatch == False:
+
+            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, Y)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(Y.detach().cpu().numpy())
+        
+        loss_hist.append(torch.tensor(train_loss))
+        print(i, train_loss)
+
+        ##### test one_step #####
+        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
+        test_loss_hist.append(test_loss)
+
+        ##### test multi_step #####
+        if (i+1) == epochs:
+           test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+
+
+
+def evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, iter, optimizer_name):
 
   with torch.no_grad():
     model.eval()
 
-    # calculating outputs again with zeroed dropout
-    y_pred_test = model(X_test)
+    t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
+    y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)
+
 
     # save predicted node feature for analysis
     pred_test = y_pred_test.detach().cpu()
     Y_test = Y_test.detach().cpu()
 
     test_loss = criterion(pred_test, Y_test).item()
+    print(test_loss)
 
   return pred_test, test_loss
 
@@ -302,7 +367,11 @@ def evaluate(dyn_sys, model, X_test, Y_test, device, criterion, iter, optimizer_
 
 def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time, tran_state):
 
+  print("true_traj", true_traj.shape)
+  print("integration_time", integration_time)
+
   # num_of_extrapolation_dataset
+  t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
   num_data, dim = true_traj.shape
   test_t = torch.linspace(0, integration_time, num_data)
   pred_traj = torch.zeros(num_data, dim).to(device)
@@ -310,27 +379,25 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
   with torch.no_grad():
     model.eval()
     model.double()
+    model.to(device)
 
     # initialize X
     print(true_traj[0])
     X = true_traj[0].to(device)
 
-    # calculating outputs 
+    # calculating outputs
     for i in range(num_data):
         pred_traj[i] = X # shape [3]
-        cur_pred = model(X.double())
+        # cur_pred = model(t.to(device), X.double())
+        cur_pred = solve_odefunc(model, t_eval_point, X.double()).to(device)
         X = cur_pred
-        if i+1 % 2000 == 0:
-            print("Calculating ", (i+1), "th timestep")
 
     # save predicted trajectory
     pred_traj_csv = np.asarray(pred_traj.detach().cpu())
     true_traj_csv = np.asarray(true_traj.detach().cpu())
-    np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/' +"pred_traj.csv", pred_traj_csv, delimiter=",")
-    np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/' +"true_traj.csv", true_traj_csv, delimiter=",")
 
     # plot traj
-    plot_multi_step_traj_3D(dyn_sys, optimizer_name, test_t, pred_traj, true_traj)
+    plot_multi_step_traj_3D(dyn_sys, time_step, optimizer_name, test_t, pred_traj, true_traj)
 
     # Plot Error ||pred - true||
     multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
@@ -339,79 +406,61 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
 
 
 
-def plot_multi_step_traj_3D(dyn_sys, optim_n, test_t, pred_traj, true_traj):
+def plot_multi_step_traj_3D(dyn_sys, time_step, optim_n, test_t, pred_traj, true_traj):
     #plot the x, y, z
 
-    figure(figsize=(18, 6))
-    title(f"Multi-Step Predicted Trajectory of Lorenz")
-    plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', linewidth=3)
-    plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', linewidth=3)
-    plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', linewidth=3)
+    fig, axs = subplots(2, figsize=(18, 9), sharex=True)
+    fig.suptitle("Multi-Step Predicted Trajectory of Lorenz", fontsize=24)
+    axs[0].plot(test_t, pred_traj[:, 0].detach().cpu(), c='C0', ls='--', label='Prediction of x', alpha=0.7)
+    axs[0].plot(test_t, pred_traj[:, 1].detach().cpu(), c='C1', ls='--', label='Prediction of y', alpha=0.7)
+    axs[0].plot(test_t, pred_traj[:, 2].detach().cpu(), c='C2', ls='--', label='Prediction of z', alpha=0.7)
+    axs[0].grid(True)
+    axs[0].legend(loc='best', fontsize=20)
+    axs[0].set_ylabel(r'$\Phi_{NODE}(t)$', fontsize=24)
+    axs[0].tick_params(labelsize=24)
 
-    plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.6)
-    plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.6)
-    plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.6)
+    axs[1].plot(test_t, true_traj[:, 0].detach().cpu(), c='C3', marker=',', label='Ground Truth of x', alpha=0.7)
+    axs[1].plot(test_t, true_traj[:, 1].detach().cpu(), c='C4', marker=',', label='Ground Truth of y', alpha=0.7)
+    axs[1].plot(test_t, true_traj[:, 2].detach().cpu(), c='C5', marker=',', label='Ground Truth of z', alpha=0.7)
+    axs[1].grid(True)
+    axs[1].legend(loc='best', fontsize=20)
+    axs[1].tick_params(labelsize=24)
+    axs[1].set_ylabel(r'$\Phi_{rk4}(t)$', fontsize=24)
 
-    xlabel('t')
-    ylabel('y')
-    legend(loc='best')
-    savefig('../plot/expt_'+str(dyn_sys)+'_'+ optim_n + '_multi_step_pred.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
-   
+    xlabel('t', fontsize=24)
+    tight_layout()
+    savefig('../test_result/expt_'+str(dyn_sys)+"/"+str(optim_n)+"/"+str(time_step)+"/"+'multi_step_pred.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
+
     return
 
 
 
 def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time, tran_state):
-    ''' func: plot error vs real time 
+    ''' func: plot error vs real time
         args:   pred_traj = pred_traj by Neural ODE (csv file)
                 Y = true_traj (csv file) '''
 
     one_iter = int(1/time_step)
-    test_x = torch.arange(0, integration_time, time_step)[tran_state:]
-    #test_x = torch.arange(0, integration_time, time_step)
+    # test_x = torch.arange(0, integration_time, time_step)[tran_state:]
+    test_x = torch.arange(0, integration_time, time_step)
     pred = pred_traj.detach().cpu()
     Y = Y.cpu()
 
     # calculate error
     error_x = np.abs(pred[:, 0] - Y[:, 0]) # np.linalg.norm
-
-    # Save error in csv
-    np.savetxt('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+ "error_hist_" + str(time_step) + ".csv", error_x, delimiter=",")
-
-    # Convert y to ln(y)
-    error_x = np.clip(error_x, 1e-12, None)
-    log_e_error = np.log(error_x)
-
-    if dyn_sys == "lorenz":
-        # Find the index for tangent slope
-        max_index = torch.argmax(torch.tensor(log_e_error[0:one_iter]))
-        MIE_start = one_iter*20
-        max_index_end = torch.argmax(torch.tensor(log_e_error[MIE_start:one_iter*30]))
-
-        lin_x = test_x[max_index:max_index_end+MIE_start+1]
-        print("lin x:", lin_x)
-
-        # Find tangent line
-        linout = stats.linregress(lin_x, log_e_error[max_index:max_index_end+MIE_start+1])
-        y_tangent = lin_x*linout[0] + linout[1] #log_e_error[max_index]
-        print("estimated slope: ", linout[0])
-        print("bias: ", linout[1], np.log(linout[1]))
-        print("slope: ", np.abs(y_tangent[0] - y_tangent[-1])/(lin_x[-1] - lin_x[0]))
-
-    # Plot semilogy error
+    slope = [np.exp(0.9*x)+error_x[15] for x in test_x[:500]]
+    slope = np.array(slope)
+    
     fig, ax = subplots(figsize=(24, 12))
-    ax.plot(test_x, log_e_error, linewidth=1, alpha=0.9)
-    if dyn_sys == "lorenz":
-        ax.plot(lin_x, y_tangent, linewidth=2, alpha=0.9)
+    ax.semilogy(test_x[2:], error_x[2:], linewidth=2, alpha=0.9, color="b")
+    ax.semilogy(test_x[2:500], slope[2:], linewidth=2, ls="--", color="gray", alpha=0.9)
     ax.grid(True)
     ax.set_xlabel(r"$n \times \delta t$", fontsize=24)
-    ax.set_ylabel(r"$log |x(t) - x\_pred(t)|$", fontsize=24)
-    ax.legend(['x component', 'approx slope'])
-    ax.xaxis.set_tick_params(labelsize=24)
-    ax.yaxis.set_tick_params(labelsize=24)
+    ax.set_ylabel(r"$log |\Phi_{rk4}(t) - \Phi_{NODE}(t)|$", fontsize=24)
+    ax.legend(['x component', 'approx slope'], fontsize=20)
+    ax.tick_params(labelsize=24)
     tight_layout()
-    #ax.set_title(r"log |x(t) - x_pred(t)|"+" After {num_epoch} Epochs")
-    fig.savefig('../test_result/expt_'+str(dyn_sys)+'/'+ optimizer_name + '/' + str(time_step) + '/'+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
+    fig.savefig('../test_result/expt_'+str(dyn_sys)+"/"+str(optimizer_name)+"/"+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 

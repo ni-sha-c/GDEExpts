@@ -244,11 +244,11 @@ class ODE_Lorenz(nn.Module):
     def __init__(self):
         super(ODE_Lorenz, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(1, 32 * 9),
+            nn.Linear(1, 32 * 49),
             nn.GELU(),
-            nn.Linear(32 * 9, 64 * 9),
+            nn.Linear(32 * 49, 64 * 49),
             nn.GELU(),
-            nn.Linear(64 * 9, 1)
+            nn.Linear(64 * 49, 1)
         )
         self.t = torch.linspace(0, 0.01, 2)
 
@@ -289,11 +289,11 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
 
     ##### Change it to analytical Jacobian
-    True_J = torch.ones(num_train, 1, 1).to(device)
-    for i in range(num_train):
-        True_J[i] = Jacobian_Matrix(X[i], sigma=10.0, r=28.0, b=8/3)
-    print(True_J.shape)
-    print("Finished Computing True Jacobian")
+    # True_J = torch.ones(num_train, 1, 1).to(device)
+    # for i in range(num_train):
+    #     True_J[i] = Jacobian_Matrix(X[i], sigma=10.0, r=28.0, b=8/3)
+    # print(True_J.shape)
+    # print("Finished Computing True Jacobian")
 
     for i in range(epochs): # looping over epochs
         m.train()
@@ -303,12 +303,10 @@ def train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs
 
         optimizer.zero_grad()
         MSE_loss = criterion(y_pred, Y)
-        jacrev = torch.func.jacrev(m, argnums=1)
-        # print("jacrev", jacrev)
-        compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
-        cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
-        # print(cur_model_J.grad_fn)
-        train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss)
+        # jacrev = torch.func.jacrev(m, argnums=1)
+        # compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
+        # cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
+        train_loss = MSE_loss #jacobian_loss(True_J, cur_model_J, MSE_loss)
         train_loss.backward()
         optimizer.step()
 
@@ -586,19 +584,92 @@ df.set_index('Date', inplace=True)
 ada_prices = pd.DataFrame(df["Close"]).rename(columns={"Close": "Price"})
 # Get ADA date array
 timesteps = ada_prices.index.to_numpy()
+
+import re
+
+
+
+print(timesteps[:2])
+timesteps = [float(re.search(r'\d+', x).group()) for x in timesteps]
+print(timesteps[:2])
 prices = ada_prices["Price"].to_numpy()
 # Create train and test splits the right way for time series data
 split_size = int(0.8 * len(prices)) # 80% train, 20% test
 
 # Create train data splits (everything before the split)
 # X, Y = timesteps[:split_size], prices[:split_size]
-X, Y = prices[0:split_size-1], prices[1:split_size]
+HORIZON = 1 # predict 1 step at a time
+WINDOW_SIZE = 7 # use a week worth of timesteps to predict the horizon
+
+# Create function to label windowed data
+def get_labelled_windows(x, horizon=1):
+  """
+  Creates labels for windowed dataset.
+
+  E.g. if horizon=1 (default)
+  Input: [1, 2, 3, 4, 5, 6] -> Output: ([1, 2, 3, 4, 5], [6])
+  """
+  return x[:, :-horizon], x[:, -horizon:]
+
+# Create function to view NumPy arrays as windows
+def make_windows(x, window_size=7, horizon=1):
+  """
+  Turns a 1D array into a 2D array of sequential windows of window_size.
+  """
+  # 1. Create a window of specific window_size (add the horizon on the end for later labelling)
+  window_step = np.expand_dims(np.arange(window_size+horizon), axis=0)
+  # print(f"Window step:\n {window_step}")
+
+  # 2. Create a 2D array of multiple window steps (minus 1 to account for 0 indexing)
+  window_indexes = window_step + np.expand_dims(np.arange(len(x)-(window_size+horizon-1)), axis=0).T # create 2D array of windows of size window_size
+  # print(f"Window indexes:\n {window_indexes[:3], window_indexes[-3:], window_indexes.shape}")
+  # 3. Index on the target array (time series) with 2D array of multiple window steps
+  windowed_array = x[window_indexes]
+
+  # 4. Get the labelled windows
+  windows, labels = get_labelled_windows(windowed_array, horizon=horizon)
+
+  return windows, labels
+
+
+# Make the train/test splits
+def make_train_test_splits(windows, labels, test_split=0.2):
+  """
+  Splits matching pairs of windows and labels into train and test splits.
+  """
+  split_size = int(len(windows) * (1-test_split)) # this will default to 80% train/20% test
+  train_windows = windows[:split_size]
+  train_labels = labels[:split_size]
+  test_windows = windows[split_size:]
+  test_labels = labels[split_size:]
+  return train_windows, test_windows, train_labels, test_labels
+
+
+full_windows, full_labels = make_windows(prices, window_size=WINDOW_SIZE, horizon=HORIZON)
+
+# X, X_test, Y, Y_test = make_train_test_splits(full_windows, full_labels)
+# print(len(X), len(X_test), len(Y), len(Y_test))
+
+# X, Y = prices[0:split_size-1], prices[1:split_size]
+# print(X.shape)
+# X = np.array(group_every_n_elements(X, 7))
+# Y = np.array(group_every_n_elements(Y, 7))
+# print(X[0, :5])
+# print(Y[0, :7])
+
 
 # Create test data splits (everything after the split)
 # X_test, Y_test = timesteps[split_size:], prices[split_size:]
-X_test, Y_test = prices[split_size-1:-1], prices[split_size:]
+# X_test, Y_test = prices[split_size-1:-1], prices[split_size:]
+# print(X_test.shape)
+# X_test = np.array(group_every_n_elements(X_test, 7))
+# Y_test = np.array(group_every_n_elements(Y_test, 7))
 
-dataset = [torch.tensor(X.astype(np.float64)), torch.tensor(Y.astype(np.float64)), torch.tensor(X_test.astype(np.float64)), torch.tensor(Y_test.astype(np.float64))]
+
+# dataset = [torch.tensor(X.astype(np.float64)), torch.tensor(Y.astype(np.float64)), torch.tensor(X_test.astype(np.float64)), torch.tensor(Y_test.astype(np.float64))]
+timesteps = np.array(timesteps)
+print(timesteps[:split_size].shape)
+dataset = [torch.tensor(timesteps[:split_size].T.astype(np.float64)), torch.tensor(prices[:split_size].T.astype(np.float64)), torch.tensor(timesteps[split_size:].T.astype(np.float64)), torch.tensor(prices[split_size:].T.astype(np.float64))]
 
 
 
@@ -617,7 +688,7 @@ print("Saved new model!")
 # test_multistep(dyn_sys, m, num_epoch, multi_step_traj, device, 20000, optim_name, lr, time_step, real_time, num_trans)
 
 # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
-LE_node = lyap_exps("lorenz", [lorenz, 1], true_traj = multi_step_traj.to(device), iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
+LE_node = lyap_exps("lorenz", [lorenz, 7], true_traj = multi_step_traj.to(device), iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
 print(LE_node)
 
 

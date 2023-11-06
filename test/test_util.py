@@ -15,6 +15,7 @@ import sys
 sys.path.append('..')
 
 from src.NODE_solve import *
+from src.NODE import *
 from examples.Brusselator import *
 from examples.Lorenz import *
 from examples.Lorenz_periodic import *
@@ -89,7 +90,7 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
         print("Plot comparison!")
         path = '../plot/Compare_phase_plot_' + str(time_step) +'.pdf'
 
-        limit = 40000
+        limit = 50000
         x = data[:limit-tran_state, 0]
         y = data[:limit-tran_state, 1]
         z = data[:limit-tran_state, 2]
@@ -330,7 +331,7 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
 
     plt.figure(figsize=(40,10))
 
-    num_timestep = 1500
+    num_timestep = 5000
     substance_type = 0
     x = list(range(0,num_timestep))
     x_loss = list(range(0,num_epoch))
@@ -366,85 +367,86 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
 
 
 
-def corr_plot_rk4(i):
+def corr_plot_rk4(args):
 
+    i, t, dt, tau, init = args
     print(i)
 
     # ----- rk4 ----- #
-    t=50
-    dt=0.01
-    correlation = []
-    tau = torch.arange(0, 100, 1)
-    init = torch.tensor([-0.8, -0.8, -0.8])
 
     # Generate traj(0 ~ 50+tau)
-    time = torch.arange(0, t+tau[i], dt) # 0.001
+    correlation = []
+    time = torch.arange(0, t+tau[i]+1, dt)
     num_t = time.shape[0]
     traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)
 
-    x = traj[:num_t-i*100, 0]
-    z = traj[i*100:, 2]
-
-    xz = torch.matmul(x,z)
-    mean_xz = torch.mean(xz)
+    #x(t+Tau)
+    x = traj[(tau[i]+1)*int(1/dt):, 0]
+    #x(t)
+    z = traj[:t*int(1/dt), 2]
+    mean_xz = torch.inner(x,z) / (x.shape[0])
+    mean_xz = mean_xz - torch.mean(traj[:, 0])*torch.mean(traj[:, 2])
+    print("before abs:", mean_xz)
+    mean_xz[mean_xz < 0] = 0.
     correlation.append(mean_xz)
 
     return correlation
 
 
 
-def corr_plot_node(device, i):
+def corr_plot_node(args):
     # ----- node ----- #
-
-    init = torch.tensor([-0.8, -0.8, -0.8])
+    device, i, t, dt, tau, init = args
     node_correlation = []
-
-    # Generate traj(0 ~ 50+tau)
-    t=50
-    dt=0.01
-    tau = torch.arange(0, 100, 1)
-    time = torch.arange(0, t+tau[i], dt)
+    time = torch.arange(0, t+tau[i]+1, dt).to(device)
+    t_eval_point = torch.linspace(0, dt, 2).to(device)
     num_t = time.shape[0]
 
     # Load the saved model
-    model = sol.create_NODE(device, dyn_sys="lorenz", n_nodes=3, n_hidden=64, T=dt).double()
-    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model.pt'
+    model = ODE_Lorenz().to(device)
+    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_withJ.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
     print("Finished Loading model")
 
     x = init.to(device)
     # Generate traj(0 ~ 50+tau)
-    temp = torch.zeros(num_t, 3).to(device)
-    for j in range(num_t):
-        print(i, j)
-        temp[j] = x # shape [3]
-        cur_pred = model(x.double())
-        x = cur_pred
+    # temp = torch.zeros(num_t, 3).to(device)
+    # for j in range(num_t):
+    #     print(i, j)
+    #     temp[j] = x # shape [3]
+    #     cur_pred = solve_odefunc(model, t_eval_point, x)
+    #     x = cur_pred.to(device)
+    temp = torchdiffeq.odeint(model, x, time, method='rk4', rtol=1e-8)
+
 
     # Compute x*z
     print("temp", temp.shape)
-    node_x = temp[:num_t-i*100, 0]
-    node_z = temp[i*100:, 2]
-    node_xz = torch.matmul(node_x, node_z)
-    node_mean_xz = torch.mean(node_xz).detach().cpu()
-    node_correlation.append(node_mean_xz)
+    node_x = temp[(tau[i]+1)*int(1/dt):, 0]
+    node_z = temp[:t*int(1/dt), 2]
+
+    node_mean_xz = torch.inner(node_x,node_z) / (node_x.shape[0])
+    node_mean_xz = node_mean_xz - torch.mean(temp[:, 0])*torch.mean(temp[:, 2])
+    print("before node abs:", node_mean_xz)
+    node_mean_xz[node_mean_xz < 0] = 0.
+    node_correlation.append(node_mean_xz.detach().cpu())
 
     return node_correlation
 
 
 
-def plot_correlation(dyn_sys, tau, val, node_val):
+def plot_correlation(dyn_sys, tau, val, node_val, t):
     fig, ax = subplots(figsize=(36,12))
-    ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=3, alpha=0.6)
-    ax.semilogy(tau, node_val, color="slateblue", marker='o', linewidth=3, alpha=0.6)
+    ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=0.8)
+    ax.semilogy(tau, node_val, color="slateblue", marker='o', linewidth=4, alpha=0.8)
 
-    #xlim(0, tau[-1])
-    #ylim(-10, 10)
+    ax.grid(True)
+    ax.set_xlabel(r"$\tau$", fontsize=24)
+    ax.set_ylabel(r"$C_{x,z}(\tau)$", fontsize=24)
     ax.tick_params(labelsize=24)
     ax.legend(["rk4", "Neural ODE"], fontsize=24)
 
-    path = '../plot/'+'correlation'+'.svg'
+    path = '../plot/'+'correlation_'+str(t)+'.svg'
     fig.savefig(path, format='svg', dpi=400)
     return
 
@@ -501,23 +503,28 @@ if __name__ == '__main__':
     # ----- correlation plot ----- #
     
     #1. initialize
-    tau = torch.arange(0, 100, 1)
-    index_list = range(len(tau))
-    num_processes = 20 
+    t= 500
+    dt=0.01
+    tau = torch.arange(0, 101, 20)
+    init = torch.rand(3) #torch.tensor([-80., -., -8.]) #torch.rand(3)
+
+    num_processes = 5 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     multiprocessing.set_start_method('spawn')
 
     # 2. run parallel
     with multiprocessing.Pool(processes=num_processes) as pool:
-        res = pool.map(corr_plot_rk4, index_list)
-        node_res = pool.starmap(corr_plot_node, [(device, i) for i in range(len(tau))])
+        res = pool.map(corr_plot_rk4, [(i, t, dt, tau, init) for i in range(len(tau))])
+        node_res = pool.map(corr_plot_node, [(device, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
 
         rk4_val = np.array(res)
         node_val = np.array(node_res)
-        print("res shape", rk4_val.shape)
         
     # 3. plot
-    plot_correlation("lorenz", tau, rk4_val, node_val)
+    print("initial point:", init)
+    print(rk4_val)
+    print(node_val)
+    plot_correlation("lorenz", tau, rk4_val, node_val, t)
     
 
 
