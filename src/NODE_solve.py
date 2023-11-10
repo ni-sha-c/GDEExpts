@@ -339,9 +339,9 @@ def MSE_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
         ##### test multi_step #####
         if (i+1) == epochs:
-           test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+           error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
 
-    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, error
 
 
 
@@ -400,9 +400,9 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
     plot_multi_step_traj_3D(dyn_sys, time_step, optimizer_name, test_t, pred_traj, true_traj)
 
     # Plot Error ||pred - true||
-    multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
+    error = multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
 
-  return
+  return error
 
 
 
@@ -464,4 +464,4 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
 
     print("multi step pred error: ", error_x[-1])
 
-    return
+    return error_x[-1]

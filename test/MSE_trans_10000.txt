@@ -1,0 +1,27 @@
+This Hyperparameter setting is for training model without Jacobian Loss (only MSE Loss) 
+
+integration_time 500.0
+tensor([ 0.2303, -1.1229, -0.1863])
+multi step pred error:  tensor(12.4498)
+train loss:  tensor(2.3367e-06)
+test loss:  2.408835331015539e-05
+NODE LE:  tensor([ 0.9205, -0.0077, -6.0299], dtype=torch.float64)
+rk4 LE:  tensor([ 8.6372e-01,  2.7116e-03, -1.4533e+01], dtype=torch.float64)
+Norm Difference:  tensor(8.5033, dtype=torch.float64)
+
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 20000,
+  "integration_time": 300,
+  "num_train": 10000,
+  "num_test": 7500,
+  "num_trans": 10000,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "optim_name": "AdamW",
+  "dyn_sys": "lorenz"
+}

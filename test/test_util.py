@@ -37,7 +37,7 @@ from examples.Tent_map import *
 
 
 
-def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_time, ALL=True, tran_state=100):
+def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time, ALL, tran_state, limit):
     ''' func: plot true phase or multi-time step simulated phase for 3D dynamic system, each from different random initial point 
         param:  n = num of time step size
                 data = simulated or true trajectory
@@ -51,8 +51,10 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
                   'lorenz' : [lorenz, 3]}
     dyn_system, dim = DYNSYS_MAP[dyn_sys]
     ti, tf = integration_time
-    init_state = torch.randn(dim)
-    true_data = simulate(dyn_system, ti, tf, init_state, time_step)[tran_state:]
+    init_state = torch.randn(dim)*5
+    #init_state = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01])
+    true_data = simulate(dyn_system, ti, tf, init_state, time_step)
+    n = true_data.shape[0]
 
     # If want to plot either NODE or true trajectory only,
     if ALL == True:
@@ -88,17 +90,27 @@ def plot_3d_space(n, data, dyn_sys, time_step, optim_name, NODE, integration_tim
     # If want to plot comparison plot between NODE vs true trajectory
     else:
         print("Plot comparison!")
-        path = '../plot/Compare_phase_plot_' + str(time_step) +'.pdf'
+        path = '../plot/Compare_phase_plot_trans_100_2nd' + str(tran_state) +'.pdf'
 
-        limit = 50000
-        x = data[:limit-tran_state, 0]
-        y = data[:limit-tran_state, 1]
-        z = data[:limit-tran_state, 2]
+        # Load the saved model
+        model = ODE_Lorenz().to(device)
+        model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+        print("Finished Loading model")
 
-        x_true = true_data[:limit-tran_state, 0]
-        y_true = true_data[:limit-tran_state, 1]
-        z_true = true_data[:limit-tran_state, 2]
-        t = torch.arange(ti, tf, time_step)[:limit-tran_state]
+        data = simulate(model, ti, tf, init_state.to(device), time_step)
+        data = data.detach().cpu().numpy()
+
+        # limit = 50000
+        x = data[tran_state:limit, 0]
+        y = data[tran_state:limit, 1]
+        z = data[tran_state:limit, 2]
+
+        x_true = true_data[tran_state:limit, 0]
+        y_true = true_data[tran_state:limit, 1]
+        z_true = true_data[tran_state:limit, 2]
+        t = torch.arange(ti, tf, time_step)[tran_state:limit]
         print("t", t.shape)
         print("x", x.shape)
         print("x_true", x_true.shape)
@@ -370,7 +382,6 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
 def corr_plot_rk4(args):
 
     i, t, dt, tau, init = args
-    print(i)
 
     # ----- rk4 ----- #
 
@@ -381,13 +392,14 @@ def corr_plot_rk4(args):
     traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)
 
     #x(t+Tau)
-    x = traj[(tau[i]+1)*int(1/dt):, 0]
+    x = traj[(tau[i]+1)*int(1/dt):, 2]
     #x(t)
-    z = traj[:t*int(1/dt), 2]
+    z = traj[:t*int(1/dt), 0]
     mean_xz = torch.inner(x,z) / (x.shape[0])
-    mean_xz = mean_xz - torch.mean(traj[:, 0])*torch.mean(traj[:, 2])
-    print("before abs:", mean_xz)
-    mean_xz[mean_xz < 0] = 0.
+    mean_xz = mean_xz - torch.mean(x)*torch.mean(z)
+    print(i, "before abs:", mean_xz)
+    #mean_xz[mean_xz < 0] = 0.
+    mean_xz = torch.abs(mean_xz)
     correlation.append(mean_xz)
 
     return correlation
@@ -396,18 +408,11 @@ def corr_plot_rk4(args):
 
 def corr_plot_node(args):
     # ----- node ----- #
-    device, i, t, dt, tau, init = args
+    device, model, i, t, dt, tau, init = args
     node_correlation = []
     time = torch.arange(0, t+tau[i]+1, dt).to(device)
     t_eval_point = torch.linspace(0, dt, 2).to(device)
     num_t = time.shape[0]
-
-    # Load the saved model
-    model = ODE_Lorenz().to(device)
-    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_withJ.pt'
-    model.load_state_dict(torch.load(path))
-    model.eval()
-    print("Finished Loading model")
 
     x = init.to(device)
     # Generate traj(0 ~ 50+tau)
@@ -422,13 +427,14 @@ def corr_plot_node(args):
 
     # Compute x*z
     print("temp", temp.shape)
-    node_x = temp[(tau[i]+1)*int(1/dt):, 0]
-    node_z = temp[:t*int(1/dt), 2]
+    node_x = temp[(tau[i]+1)*int(1/dt):, 2]
+    node_z = temp[:t*int(1/dt), 0]
 
     node_mean_xz = torch.inner(node_x,node_z) / (node_x.shape[0])
-    node_mean_xz = node_mean_xz - torch.mean(temp[:, 0])*torch.mean(temp[:, 2])
-    print("before node abs:", node_mean_xz)
-    node_mean_xz[node_mean_xz < 0] = 0.
+    node_mean_xz = node_mean_xz - torch.mean(node_x)*torch.mean(node_z)
+    print(i, "before node abs:", node_mean_xz)
+    #node_mean_xz[node_mean_xz < 0] = 0.
+    node_mean_xz = torch.abs(node_mean_xz)
     node_correlation.append(node_mean_xz.detach().cpu())
 
     return node_correlation
@@ -456,9 +462,8 @@ def plot_correlation(dyn_sys, tau, val, node_val, t):
 if __name__ == '__main__':
 
     #----- test plot_3d_space() -----#
-    '''traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/pred_traj.csv", delimiter=",", dtype=float)
-    n = len(traj)
-    plot_3d_space(n, traj, "lorenz", 0.01, "AdamW", True, [0, 500], False, 0)'''
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)
 
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
 
@@ -502,20 +507,26 @@ if __name__ == '__main__':
 
     # ----- correlation plot ----- #
     
-    #1. initialize
-    t= 500
+    '''#1. initialize
+    t= 1000
     dt=0.01
-    tau = torch.arange(0, 101, 20)
-    init = torch.rand(3) #torch.tensor([-80., -., -8.]) #torch.rand(3)
-
+    tau = torch.arange(0, 200*100, 1000)
+    init = torch.rand(3)*10 #torch.tensor([-80., -., -8.]) 
     num_processes = 5 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     multiprocessing.set_start_method('spawn')
+    
+    #1-1. Load the saved model
+    model = ODE_Lorenz().to(device)
+    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_withJ.pt'
+    model.load_state_dict(torch.load(path))
+    model.eval()
+    print("Finished Loading model")
 
     # 2. run parallel
     with multiprocessing.Pool(processes=num_processes) as pool:
         res = pool.map(corr_plot_rk4, [(i, t, dt, tau, init) for i in range(len(tau))])
-        node_res = pool.map(corr_plot_node, [(device, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
+        node_res = pool.map(corr_plot_node, [(device, model, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
 
         rk4_val = np.array(res)
         node_val = np.array(node_res)
@@ -524,7 +535,8 @@ if __name__ == '__main__':
     print("initial point:", init)
     print(rk4_val)
     print(node_val)
-    plot_correlation("lorenz", tau, rk4_val, node_val, t)
+    len_tau = torch.linspace(0, 100, tau.shape[0])
+    plot_correlation("lorenz", len_tau, rk4_val, node_val, t)'''
     
 
 

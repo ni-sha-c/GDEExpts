@@ -229,8 +229,9 @@ def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integratio
     return
 
 
-def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method):
-    ''' Compute Lyapunov Exponents '''
+def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, method, path):
+    ''' Compute Lyapunov Exponents 
+        args: path = path to model '''
 
     # Initialize parameter
     dyn_sys_func, dim = dyn_sys_info
@@ -241,6 +242,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
     real_time = iters * time_step
     t_eval_point = torch.linspace(0, time_step, 2)
+    t_eval_point = t_eval_point.to(device)
     tran = 0
 
     if method == "NODE":
@@ -248,7 +250,6 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
         # load the saved model
         model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
-        path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
@@ -258,7 +259,6 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
             #update x0
             x0 = true_traj[i].to(device).double()
-            t_eval_point = t_eval_point.to(device)
             # cur_J = model(x0).clone().detach()
             cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
             #print(cur_J)

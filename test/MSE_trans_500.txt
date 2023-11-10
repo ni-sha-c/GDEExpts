@@ -1,0 +1,25 @@
+tensor([ 0.2303, -1.1229, -0.1863])
+multi step pred error:  tensor(4.6970)
+train loss:  tensor(7.8789e-05)
+test loss:  9.756815136751982e-05
+
+NODE LE:  tensor([ 0.9272,  0.0190, -6.2082], dtype=torch.float64)
+rk4 LE:  tensor([ 8.6372e-01,  2.7116e-03, -1.4533e+01], dtype=torch.float64)
+Norm Difference:  tensor(8.3251, dtype=torch.float64)
+
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 20000,
+  "integration_time": 300,
+  "num_train": 10000,
+  "num_test": 7500,
+  "num_trans": 500,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 5000,
+  "loss_type": "MSE",
+  "optim_name": "AdamW",
+  "dyn_sys": "lorenz"
+}
