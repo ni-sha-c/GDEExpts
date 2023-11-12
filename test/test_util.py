@@ -462,8 +462,8 @@ def plot_correlation(dyn_sys, tau, val, node_val, t):
 if __name__ == '__main__':
 
     #----- test plot_3d_space() -----#
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)
+    '''device = "cuda" if torch.cuda.is_available() else "cpu"
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)'''
 
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
 
@@ -507,11 +507,11 @@ if __name__ == '__main__':
 
     # ----- correlation plot ----- #
     
-    '''#1. initialize
-    t= 1000
-    dt=0.01
-    tau = torch.arange(0, 200*100, 1000)
-    init = torch.rand(3)*10 #torch.tensor([-80., -., -8.]) 
+    #1. initialize
+    t= 5000
+    dt= 0.01
+    tau = torch.arange(0, 100*100, 1000)
+    init = torch.rand(3) #torch.tensor([-80., -., -8.]) 
     num_processes = 5 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     multiprocessing.set_start_method('spawn')
@@ -536,7 +536,7 @@ if __name__ == '__main__':
     print(rk4_val)
     print(node_val)
     len_tau = torch.linspace(0, 100, tau.shape[0])
-    plot_correlation("lorenz", len_tau, rk4_val, node_val, t)'''
+    plot_correlation("lorenz", len_tau, rk4_val, node_val, t)
     
 
 
