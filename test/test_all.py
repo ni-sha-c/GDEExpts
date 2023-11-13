@@ -42,7 +42,7 @@ if __name__ == '__main__':
     parser.add_argument("--integration_time", type=int, default=180) #100
     parser.add_argument("--num_train", type=int, default=10000) #3000
     parser.add_argument("--num_test", type=int, default=7500)#3000
-    parser.add_argument("--num_trans", type=int, default=100) #10000
+    parser.add_argument("--num_trans", type=int, default=0) #10000
     parser.add_argument("--iters", type=int, default=5*(10**4))
     parser.add_argument("--minibatch", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=500)

@@ -457,6 +457,21 @@ def plot_correlation(dyn_sys, tau, val, node_val, t):
     return
 
 
+from scipy.signal import correlate
+
+def plot_xcorr(x, y): 
+    "Plot cross-correlation (full) between two signals."
+    N = max(len(x), len(y)) 
+    n = min(len(x), len(y)) 
+
+    if N == len(y): 
+        lags = np.arange(-N + 1, n) 
+    else: 
+        lags = np.arange(-n + 1, N) 
+    c = correlate(x / np.std(x), y / np.std(y), 'full') 
+
+    plot(lags, c / n) 
+    show() 
 
 
 if __name__ == '__main__':

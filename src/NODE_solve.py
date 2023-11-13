@@ -258,8 +258,8 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
             optimizer.step()
 
             # leave it for debug purpose for now, and remove it
-            # pred_train.append(y_pred.detach().cpu().numpy())
-            # true_train.append(Y.detach().cpu().numpy())
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(Y.detach().cpu().numpy())
         
         loss_hist.append(train_loss)
         print(i, MSE_loss.item(), train_loss.item())
@@ -270,9 +270,9 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
         ##### test multi_step #####
         if (i+1) == epochs:
-           test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+           error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
 
-    return pred_train, true_train, pred_test, loss_hist, test_loss_hist
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, error
 
 
 

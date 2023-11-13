@@ -242,11 +242,11 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
     real_time = iters * time_step
     t_eval_point = torch.linspace(0, time_step, 2)
-    t_eval_point = t_eval_point.to(device)
     tran = 0
 
     if method == "NODE":
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        t_eval_point = t_eval_point.to(device)
 
         # load the saved model
         model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
