@@ -5,8 +5,11 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.gridspec as gridspec
 import multiprocessing
 import numpy as np
+import scipy
+from scipy.fft import fft, rfft
 from scipy.integrate import odeint
 from scipy.signal import argrelextrema
+from scipy.signal import correlate
 from test_metrics import *
 
 import os
@@ -391,15 +394,16 @@ def corr_plot_rk4(args):
     num_t = time.shape[0]
     traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)
 
-    #x(t+Tau)
-    x = traj[(tau[i]+1)*int(1/dt):, 2]
+    print(tau[i], "time:", time.shape)
+
+    #z(t+Tau)
+    z_tau = traj[(tau[i]+1)*int(1/dt):, 2]
     #x(t)
-    z = traj[:t*int(1/dt), 0]
-    mean_xz = torch.inner(x,z) / (x.shape[0])
-    mean_xz = mean_xz - torch.mean(x)*torch.mean(z)
-    print(i, "before abs:", mean_xz)
-    #mean_xz[mean_xz < 0] = 0.
-    mean_xz = torch.abs(mean_xz)
+    x = traj[:t*int(1/dt), 0]
+    mean_xz = torch.inner(x,z_tau) / (x.shape[0])
+    mean_xz = mean_xz - torch.mean(x)*torch.mean(z_tau)
+    #print(i, "before abs:", mean_xz)
+    #mean_xz = torch.abs(mean_xz)
     correlation.append(mean_xz)
 
     return correlation
@@ -415,26 +419,18 @@ def corr_plot_node(args):
     num_t = time.shape[0]
 
     x = init.to(device)
-    # Generate traj(0 ~ 50+tau)
-    # temp = torch.zeros(num_t, 3).to(device)
-    # for j in range(num_t):
-    #     print(i, j)
-    #     temp[j] = x # shape [3]
-    #     cur_pred = solve_odefunc(model, t_eval_point, x)
-    #     x = cur_pred.to(device)
     temp = torchdiffeq.odeint(model, x, time, method='rk4', rtol=1e-8)
-
 
     # Compute x*z
     print("temp", temp.shape)
-    node_x = temp[(tau[i]+1)*int(1/dt):, 2]
-    node_z = temp[:t*int(1/dt), 0]
+    node_z = temp[(tau[i]+1)*int(1/dt):, 2]
+    node_x = temp[:t*int(1/dt), 0]
 
     node_mean_xz = torch.inner(node_x,node_z) / (node_x.shape[0])
     node_mean_xz = node_mean_xz - torch.mean(node_x)*torch.mean(node_z)
     print(i, "before node abs:", node_mean_xz)
     #node_mean_xz[node_mean_xz < 0] = 0.
-    node_mean_xz = torch.abs(node_mean_xz)
+    #node_mean_xz = torch.abs(node_mean_xz)
     node_correlation.append(node_mean_xz.detach().cpu())
 
     return node_correlation
@@ -457,25 +453,56 @@ def plot_correlation(dyn_sys, tau, val, node_val, t):
     return
 
 
-from scipy.signal import correlate
 
-def plot_xcorr(x, y): 
+def plot_xcorr(): 
     "Plot cross-correlation (full) between two signals."
-    N = max(len(x), len(y)) 
-    n = min(len(x), len(y)) 
 
-    if N == len(y): 
+    # Load the saved model
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    time_step = 0.01
+    x0 = torch.rand(3).to(device).double()
+    model = ODE_Lorenz().to(device).double()
+
+    # Pick the model!
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model_J_0.pt'
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+
+    x_t = np.asarray([simulate(model, 0., 150., x0, time_step).detach().to('cpu')])
+    rk4_x = np.asarray([simulate(lorenz, 0., 150., x0, time_step).detach().to('cpu')])
+
+
+    x = x_t[:, :, 0].flatten()
+    z = x_t[:, :, 2].flatten()
+
+    true_x = rk4_x[:, :, 0].flatten()
+    true_z = rk4_x[:, :, 2].flatten()
+
+    N = max(len(x), len(z)) 
+    n = min(len(x), len(z)) 
+
+    if N == len(z): 
         lags = np.arange(-N + 1, n) 
     else: 
         lags = np.arange(-n + 1, N) 
-    c = correlate(x / np.std(x), y / np.std(y), 'full') 
 
-    plot(lags, c / n) 
-    show() 
+    c = correlate(x, z, 'same') 
+    c_true = correlate(true_x, true_z, 'same')
+    print("c shape", c.shape)
+    print(c)
+    plot(lags[N-1:], c) #c / n 
+    plot(lags[N-1:], c_true)
+    path = '../plot/'+'c_'+'.png'
+    savefig(path, format='png')
+    #show() 
+    #plot_correlation(dyn_sys, lags, c/n, c/n, time_step)
+    return
 
 
 if __name__ == '__main__':
 
+    #plot_xcorr()
     #----- test plot_3d_space() -----#
     '''device = "cuda" if torch.cuda.is_available() else "cpu"
     plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)'''
@@ -523,17 +550,18 @@ if __name__ == '__main__':
     # ----- correlation plot ----- #
     
     #1. initialize
-    t= 5000
+    t= 20
     dt= 0.01
-    tau = torch.arange(0, 100*100, 1000)
+    tf = 70
+    tau = torch.arange(0, tf)
     init = torch.rand(3) #torch.tensor([-80., -., -8.]) 
-    num_processes = 5 
+    num_processes = 5
     device = "cuda" if torch.cuda.is_available() else "cpu"
     multiprocessing.set_start_method('spawn')
     
     #1-1. Load the saved model
     model = ODE_Lorenz().to(device)
-    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_withJ.pt'
+    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_J_0.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
     print("Finished Loading model")
@@ -545,13 +573,33 @@ if __name__ == '__main__':
 
         rk4_val = np.array(res)
         node_val = np.array(node_res)
+
+    # 3. compute Fourier
+    rk4_fourier = scipy.fft.rfft(rk4_val)
+    node_fourier = scipy.fft.rfft(node_val)
+    normalize = rk4_val.shape[0] / 2
+    print(normalize)
+
+    freq_axis = scipy.fft.rfftfreq(rk4_val.shape[0], 1/0.01)
         
-    # 3. plot
+    # 4. plot correlation
     print("initial point:", init)
     print(rk4_val)
     print(node_val)
-    len_tau = torch.linspace(0, 100, tau.shape[0])
-    plot_correlation("lorenz", len_tau, rk4_val, node_val, t)
+    len_tau = torch.linspace(0, tf, tau.shape[0])
+    plot_correlation("lorenz", len_tau, np.abs(rk4_val), np.abs(node_val), t)
     
+    # 5. plot Fourier
+    fig, ax = subplots(figsize=(36,12))
+    ax.plot(np.abs(rk4_fourier/normalize), color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
+    ax.plot(np.abs(node_fourier/normalize), color="slateblue", marker='o', linewidth=4, alpha=1)
 
+    ax.grid(True)
+    #ax.set_xlabel(r"$Frequency$", fontsize=24)
+    ax.set_ylabel(r"$F(C_{x,z}(\tau))$", fontsize=24)
+    ax.tick_params(labelsize=24)
+    ax.legend(["rk4", "Neural ODE"], fontsize=24)
+
+    path = '../plot/'+'Fourier.png'
+    fig.savefig(path, format='png', dpi=400)
 

@@ -23,11 +23,11 @@ from examples.Tent_map import *
 
 # Current code is inspired by: https://jakevdp.github.io/blog/2013/02/16/animating-the-lorentz-system-in-3d/
 
-N_trajectories = 1000
+N_trajectories = 2000
 
 # Choose random starting points, uniformly distributed from -30 to 30
 np.random.seed(42)
-bound_attractor = 100.
+bound_attractor = 60.
 # Adding np.array([0, 0, -30]) so that attractor lies in the center of cube
 x0 = bound_attractor * np.random.uniform(-1.0, 1.0, (N_trajectories,3)) #15 np.array([-25, 25,-25])+
 print(x0)
@@ -43,7 +43,7 @@ model.load_state_dict(torch.load(model_path))
 model.eval()
 print("Finished Loading model")
 
-x_t = np.asarray([simulate(model, 0., 200., x0i.double(), 0.01).detach().to('cpu') for x0i in x0])
+x_t = np.asarray([simulate(model, 0., 5., x0i.double(), 0.01).detach().to('cpu') for x0i in x0])
 print("Trajectory all computed!")
 
 # Set up figure & 3D axis for animation
