@@ -1,7 +1,12 @@
 import numpy as np
-import numba
 from scipy import integrate
 import seaborn as sns
+
+import torch
+import numba
+from numba import prange
+import time
+import torchdiffeq
 
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -22,9 +27,58 @@ from examples.Sin import *
 from examples.Tent_map import *
 
 
+@numba.jit(nopython=True)
+def lorenz_func(t, u):
+    # Assuming u is a 1D Numpy array or a Numba-compatible type
+    x, y, z = u[0], u[1], u[2]
+
+    sigma = 10.0
+    rho = 28.0
+    beta = 8.0 / 3.0
+
+    du = np.zeros(3)  # Create a Numba-compatible array for the derivative
+
+    du[0] = sigma * (y - x)
+    du[1] = x * (rho - z) - y
+    du[2] = x * y - beta * z
+
+    return du
+
+
+
+@numba.jit(parallel=True)
+def compute_trajectory(traj, N, len_T, dt):
+    for n in prange(N):  # Use prange for parallel looping
+        for i in range(1, len_T):
+            u = traj[n, i - 1, :]
+            du = lorenz_func(0., u)
+            traj[n, i, :] = traj[n, i - 1, :] + dt * du
+            # traj[n, i, :] = torchdiffeq.odeint(lorenz, torch.tensor(u), torch.linspace(0, 0.01, 2), method='euler', rtol=1e-8)[-1].numpy()
+
+# Call the parallelized function
+device = torch.device('cuda')
+N_trajectories = 1000  # Number of initial points
+x0 = np.random.rand(N_trajectories, 3)
+
+dt = 0.01
+T = np.arange(0, 100, dt)
+len_T = T.shape[0]
+
+# initialize N traj
+traj = np.zeros((N_trajectories, len_T, 3))  # N trajectories x number of time steps x dimensions of Lorenz
+traj[:, 0, :] = x0
+
+start = time.time()
+compute_trajectory(traj, N_trajectories, len_T, dt)
+end = time.time()
+
+print("Elapsed time = %s" % (end - start))
+
+
+
 # Current code is inspired by: https://jakevdp.github.io/blog/2013/02/16/animating-the-lorentz-system-in-3d/
 
-N_trajectories = 3000
+'''N_trajectories = 3000
 
 # Choose random starting points, uniformly distributed from -30 to 30
 np.random.seed(42)
@@ -45,7 +99,8 @@ model.eval()
 print("Finished Loading model")
 
 x_t = np.asarray([simulate(model, 0., 15., x0i.double(), 0.01).detach().to('cpu') for x0i in x0])
-print("Trajectory all computed!")
+print("Trajectory all computed!")'''
+x_t = traj
 
 # Set up figure & 3D axis for animation
 fig = plt.figure()
