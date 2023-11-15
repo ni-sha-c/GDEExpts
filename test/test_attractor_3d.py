@@ -57,8 +57,12 @@ def compute_trajectory(traj, N, len_T, dt):
 
 # Call the parallelized function
 device = torch.device('cuda')
-N_trajectories = 1000  # Number of initial points
-x0 = np.random.rand(N_trajectories, 3)
+N_trajectories = 1500  # Number of initial points
+np.random.seed(42)
+bound_attractor = 50.
+# Adding np.array([0, 0, -30]) so that attractor lies in the center of cube
+x0 = bound_attractor * np.random.uniform(-1.0, 1.0, (N_trajectories,3)) #15 np.array([-25, 25,-25])+
+#x0 = np.random.rand(N_trajectories, 3)
 
 dt = 0.01
 T = np.arange(0, 100, dt)
@@ -110,18 +114,19 @@ ax.set_facecolor('black')
 ax.axis('off')
 
 # Set Cube
-r = [-65., 65.]
+r = [-55., 55.]
 for s, e in itertools.combinations(np.array(list(itertools.product(r, r, r))), 2):
     if np.sum(np.abs(s-e)) == r[1]-r[0]:
         ax.plot3D(*zip(s, e), color="white", linewidth=0.5, alpha=0.5)
 
 # choose a different color for each trajectory
-colors = plt.cm.plasma(np.linspace(0, 1, N_trajectories))
+colors = plt.cm.hsv(np.linspace(0, 1, N_trajectories))
+# gist_rainbow
 
 # set up lines and points
-lines = [ax.plot([], [], [], '-', c=c, alpha=1., linewidth=2.)[0]
+lines = [ax.plot([], [], [], '-', c=c, alpha=1., linewidth=2)[0]
 for c in colors]
-pts = [ax.plot([], [], [], 'o', c=c, alpha=1., markersize=2.)[0]
+pts = [ax.plot([], [], [], 'o', c=c, alpha=0.95, markersize=2)[0]
 for c in colors]
 
 
@@ -153,6 +158,7 @@ def animate(i):
 
         if i > 10 and i < 25:
             x, y, z = xi[i-4:i].T #5
+            x_point, y_point, z_point = xi[0:1].T
         elif i >= 25 and i < 50:
             x, y, z = xi[i-10:i].T
         elif i >= 50:
@@ -161,8 +167,18 @@ def animate(i):
         line.set_data(x, y)
         line.set_3d_properties(z)
 
-        pt.set_data(x[-1:], y[-1:])
-        pt.set_3d_properties(z[-1:])
+        # pt.set_data(x[-1:], y[-1:])
+        # pt.set_3d_properties(z[-1:])
+        if i < 200:
+
+            rate = 1 - i / 200
+            x_point, y_point, z_point = xi[0:1].T
+            pt.set_data(x_point, y_point)
+            pt.set_3d_properties(z_point)
+            pt.set_alpha(rate)
+        else:
+            pt.set_data(x[-1:], y[-1:])
+            pt.set_3d_properties(z[-1:])
     
     fig.canvas.draw()
     return lines + pts
@@ -172,12 +188,12 @@ def animate(i):
 
 
 # instantiate the animator.
-anim = animation.FuncAnimation(fig, animate, init_func=init,
-                               frames=1000, interval=20, blit=True)
-anim.save('animation.gif', writer='PillowWriter')
+anim = animation.FuncAnimation(fig, animate, init_func=init, frames=1000, interval=20, blit=True)
+anim.save('animation.gif', writer='PillowWriter', fps=500)
 
 # Save as mp4. This requires mplayer or ffmpeg to be installed
-#anim.save('lorentz_attractor.mp4', fps=15, extra_args=['-vcodec', 'libx264'])
+# anim.save('lorentz_attractor.mp4', fps=15) #extra_args=['-vcodec', 'libx264']
+
 plt.show()
 
 
