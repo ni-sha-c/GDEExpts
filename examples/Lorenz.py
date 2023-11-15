@@ -11,13 +11,21 @@ def lorenz(t, u, rho=28.0):
     #rho = 28.0
     beta = 8/3
 
-    res = torch.stack([
-        sigma * (u[1] - u[0]),
-        u[0] * (rho - u[2]) - u[1],
-        (u[0] * u[1]) - (beta * u[2])
-    ])
+    if u.ndim == 1: 
+        du = torch.stack([
+            sigma * (u[1] - u[0]),
+            u[0] * (rho - u[2]) - u[1],
+            (u[0] * u[1]) - (beta * u[2])
+        ])
+    else:
+        print("multi", u.shape)
+        du = torch.stack([
+            sigma * (u[:, 1] - u[:, 0]),
+            u[:, 0] * (rho - u[:, 2]) - u[:, 1],
+            (u[:, 0] * u[:, 1]) - (beta * u[:, 2])
+        ])
 
-    return res
+    return du
 
 def lorenz_jac(x):
     '''lorenz for creating jacobian matrix.

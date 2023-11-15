@@ -1,4 +1,5 @@
 import numpy as np
+import numba
 from scipy import integrate
 import seaborn as sns
 
@@ -125,6 +126,3 @@ anim.save('animation.gif', writer='PillowWriter')
 plt.show()
 
 
-# Make kernel_odeint() -> one step integrator for forward euler R3 -> R3
-# Parallize for all N so that we only have to loop for T times
-# [3, N, T]
