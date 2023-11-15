@@ -335,6 +335,7 @@ def LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01):
 
 
 
+
 def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, periodic):
     '''plot time_space for training/test data and training loss for lorenz system'''
 
@@ -382,6 +383,7 @@ def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test,
 
 
 
+
 def corr_plot_rk4(args):
 
     i, t, dt, tau, init = args
@@ -397,7 +399,7 @@ def corr_plot_rk4(args):
     print(tau[i], "time:", time.shape)
 
     #z(t+Tau)
-    z_tau = traj[(tau[i]+1)*int(1/dt):, 2]
+    z_tau = traj[(tau[i]+1)*int(1/dt):, 1]
     #x(t)
     x = traj[:t*int(1/dt), 0]
     mean_xz = torch.inner(x,z_tau) / (x.shape[0])
@@ -423,7 +425,7 @@ def corr_plot_node(args):
 
     # Compute x*z
     print("temp", temp.shape)
-    node_z = temp[(tau[i]+1)*int(1/dt):, 2]
+    node_z = temp[(tau[i]+1)*int(1/dt):, 1]
     node_x = temp[:t*int(1/dt), 0]
 
     node_mean_xz = torch.inner(node_x,node_z) / (node_x.shape[0])
@@ -454,55 +456,51 @@ def plot_correlation(dyn_sys, tau, val, node_val, t):
 
 
 
-def plot_xcorr(): 
-    "Plot cross-correlation (full) between two signals."
+def plot_loss(MSE_train, MSE_test, J_train, J_test):
+    fig, axs = subplots(1, 2, figsize=(24, 8)) #, sharey=True
+    fig.suptitle("Loss Behavior of Jacobian Loss Compared to MSE Loss", fontsize=24)
+    
+    colors = cm.tab20b(np.linspace(0, 1, 20))
 
-    # Load the saved model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    time_step = 0.01
-    x0 = torch.rand(3).to(device).double()
-    model = ODE_Lorenz().to(device).double()
+    # Training Loss
+    x = np.arange(0, MSE_train.shape[0])
 
-    # Pick the model!
-    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model_J_0.pt'
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    print("Finished Loading model")
+    axs[0].plot(x[2000:], MSE_train[2000:], c=colors[15], label='Training Loss of MSE', alpha=0.9, linewidth=5)
+    axs[0].plot(x[2000:], J_train[2000:], c=colors[1], label='Training Loss of Jacobian Loss', alpha=0.9, linewidth=5)
+    axs[0].grid(True)
+    axs[0].legend(loc='best', fontsize=20)
+    axs[0].set_ylabel(r'$\mathcal{L}$', fontsize=24)
+    axs[0].set_xlabel('Number of Epoch', fontsize=24)
+    axs[0].tick_params(labelsize=24)
 
-    x_t = np.asarray([simulate(model, 0., 150., x0, time_step).detach().to('cpu')])
-    rk4_x = np.asarray([simulate(lorenz, 0., 150., x0, time_step).detach().to('cpu')])
+    # Test Loss
+    axs[1].plot(MSE_test, c=colors[15], label='Test Loss of MSE in MSE', alpha=0.9, linewidth=5)
+    axs[1].plot(J_test, c=colors[1],label='Test Loss of Jacobian Loss in MSE', alpha=0.9, linewidth=5)
+    axs[1].grid(True)
+    axs[1].legend(loc='best', fontsize=20)
+    axs[1].tick_params(labelsize=24)
+    axs[1].set_ylabel(r'$\mathcal{L}$', fontsize=24)
+    axs[1].set_xlabel('Number of Epoch', fontsize=24)
 
+    tight_layout()
+    savefig('../plot/loss_behavior.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
 
-    x = x_t[:, :, 0].flatten()
-    z = x_t[:, :, 2].flatten()
-
-    true_x = rk4_x[:, :, 0].flatten()
-    true_z = rk4_x[:, :, 2].flatten()
-
-    N = max(len(x), len(z)) 
-    n = min(len(x), len(z)) 
-
-    if N == len(z): 
-        lags = np.arange(-N + 1, n) 
-    else: 
-        lags = np.arange(-n + 1, N) 
-
-    c = correlate(x, z, 'same') 
-    c_true = correlate(true_x, true_z, 'same')
-    print("c shape", c.shape)
-    print(c)
-    plot(lags[N-1:], c) #c / n 
-    plot(lags[N-1:], c_true)
-    path = '../plot/'+'c_'+'.png'
-    savefig(path, format='png')
-    #show() 
-    #plot_correlation(dyn_sys, lags, c/n, c/n, time_step)
     return
+
+
+
 
 
 if __name__ == '__main__':
 
-    #plot_xcorr()
+
+    '''MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withoutJ.csv", delimiter=",", dtype=float)
+    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withoutJ.csv", delimiter=",", dtype=float)
+    J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withJ.csv", delimiter=",", dtype=float)
+    J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withJ.csv", delimiter=",", dtype=float)
+    
+    plot_loss(MSE_train, MSE_test, J_train, J_test)'''
+
     #----- test plot_3d_space() -----#
     '''device = "cuda" if torch.cuda.is_available() else "cpu"
     plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)'''
@@ -550,11 +548,11 @@ if __name__ == '__main__':
     # ----- correlation plot ----- #
     
     #1. initialize
-    t= 20
+    t= 100
     dt= 0.01
-    tf = 70
-    tau = torch.arange(0, tf)
-    init = torch.rand(3) #torch.tensor([-80., -., -8.]) 
+    tf = 1000
+    tau = torch.arange(0, tf, 500)
+    init = torch.rand(3)
     num_processes = 5
     device = "cuda" if torch.cuda.is_available() else "cpu"
     multiprocessing.set_start_method('spawn')
