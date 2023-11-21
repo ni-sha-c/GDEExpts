@@ -110,10 +110,10 @@ if __name__ == '__main__':
     tau = 600
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    init = torch.rand(3).to(device)
-    #init = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01]).to(device)
+    init = 5* torch.rand(3).to(device)
+    # init = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01]).to(device)
 
-    trans = 80
+    trans = 100
     len_trans = trans*int(1/dt)
 
     time = torch.arange(0, trans+integration+tau+1, dt)
@@ -125,53 +125,58 @@ if __name__ == '__main__':
 
     # Iterate over from 0 ... tau-1
     for i in range(tau):
-        # z(0 + Tau: t + Tau)
+
+        # # z(0 + Tau: t + Tau)
         len_tau = i*int(1/dt)
         tau_traj_z = np.array(traj[len_tau: len_tau+len_integration, 2])
 
-        # compute corr between
-        corr = np.abs(np.dot(tau_traj_z, base_traj_x))/len_integration #- np.mean(tau_traj_z)*np.mean(base_traj_x)
+        # # compute corr between
+        # corr = np.abs(np.dot(tau_traj_z, base_traj_x))/len_integration - np.mean(np.array(traj[:, 0]))*np.mean(np.array(traj[:, 2]))
+        corr = np.correlate(tau_traj_z, base_traj_x)/len_integration #- np.mean(np.array(traj[:, 0]))*np.mean(np.array(traj[:, 0]))
         print(i, corr)
 
-        # corr = scipy.signal.correlate( base_traj_x, tau_traj_z, mode="same") / len_tau - np.mean(tau_traj_z)*np.mean(base_traj_x)
+
+
+        # corr = scipy.signal.correlate( base_traj_x, tau_traj_z, mode="same") #/ len_tau #- np.mean(tau_traj_z)*np.mean(base_traj_x)
 
         # lags = scipy.signal.correlation_lags(base_traj_x.shape[0], tau_traj_z.shape[0])
-        # print(i, corr, lags)
+
+        # print(i, np.abs(np.mean(corr))- np.mean(tau_traj_z)*np.mean(base_traj_x))
         # lag = lags[np.argmax(corr)]
-        # #print(i, corr)
+        #print(i, corr)
         # print(np.log(np.abs(lag / len_tau)), "\n")
 
     
 
 
-    # ----- correlation plot ----- #
+    # # ----- correlation plot ----- #
     
-    #1. initialize
-    t= 100
-    dt= 0.01
-    tf = 1000
-    tau = torch.arange(0, tf, 100)
-    init = torch.rand(3)
-    num_processes = 5
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    multiprocessing.set_start_method('spawn')
+    # #1. initialize
+    # t= 100
+    # dt= 0.01
+    # tf = 1000
+    # tau = torch.arange(0, tf, 100)
+    # init = torch.rand(3)
+    # num_processes = 5
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    # multiprocessing.set_start_method('spawn')
     
-    #1-1. Load the saved model
-    model = ODE_Lorenz().to(device)
-    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_J_0.pt'
-    model.load_state_dict(torch.load(path))
-    model.eval()
-    print("Finished Loading model")
+    # #1-1. Load the saved model
+    # model = ODE_Lorenz().to(device)
+    # path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_J_0.pt'
+    # model.load_state_dict(torch.load(path))
+    # model.eval()
+    # print("Finished Loading model")
 
-    # 2. run parallel
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        res = pool.map(corr_plot_rk4, [(i, t, dt, tau, init) for i in range(len(tau))])
-        node_res = pool.map(corr_plot_node, [(device, model, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
+    # # 2. run parallel
+    # with multiprocessing.Pool(processes=num_processes) as pool:
+    #     res = pool.map(corr_plot_rk4, [(i, t, dt, tau, init) for i in range(len(tau))])
+    #     node_res = pool.map(corr_plot_node, [(device, model, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
 
-        rk4_val = np.array(res)
-        node_val = np.array(node_res)
+    #     rk4_val = np.array(res)
+    #     node_val = np.array(node_res)
 
-    # 3. compute Fourier
+    '''# 3. compute Fourier
     rk4_fourier = scipy.fft.rfft(rk4_val)
     node_fourier = scipy.fft.rfft(node_val)
     normalize = rk4_val.shape[0] / 2
@@ -198,5 +203,5 @@ if __name__ == '__main__':
     ax.legend(["rk4", "Neural ODE"], fontsize=24)
 
     path = '../plot/'+'Fourier.png'
-    fig.savefig(path, format='png', dpi=400)
+    fig.savefig(path, format='png', dpi=400)'''
 

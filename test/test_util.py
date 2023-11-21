@@ -52,41 +52,76 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
                   'brusselator' : [brusselator, 2],
                   'lorenz_periodic' : [lorenz_periodic, 3],
                   'lorenz' : [lorenz, 3]}
+
     dyn_system, dim = DYNSYS_MAP[dyn_sys]
     ti, tf = integration_time
-    init_state = torch.randn(dim)*5
-    #init_state = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01])
+    #init_state = torch.randn(dim)
+    init_state = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01])
     true_data = simulate(dyn_system, ti, tf, init_state, time_step)
+    for i in range(true_data.shape[0]):
+        if true_data[i, 0] > 9 and true_data[i, 0] < 10:
+            if true_data[i, 1] > 9 and true_data[i, 1] < 10:
+                print(true_data[i, :])
     n = true_data.shape[0]
 
     # If want to plot either NODE or true trajectory only,
     if ALL == True:
-        # If want to plot true trajectory only,
-        if NODE == False:
-            path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'phase_plot_' + str(time_step) +'.pdf'
-            data = true_data
-        # If want to plot NODE trajectory only,
-        elif NODE == True:
-            path = '../test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/'+'NODE_phase_plot_' + str(time_step) +'.pdf'
-        
-        fig, (ax1, ax2, ax3) = subplots(1, 3, figsize=(18,6))
+
+        path = '../plot/three_phase_plot_giveninit2'+'.pdf'
+
+        fig, axs = subplots(2, 3, figsize=(36,18))
         my_range = np.linspace(-1,1,n)
-        x = data[:, 0]
-        y = data[:, 1]
-        z = data[:, 2]
+        true_x = true_data[10000:, 0]
+        true_y = true_data[10000:, 1]
+        true_z = true_data[10000:, 2]
 
-        ax1.scatter(x, y, c=z, s = 3, cmap='plasma', alpha=0.5)
-        ax1.set_xlabel("X")
-        ax1.set_ylabel("Y")
+        # Load the saved model
+        model = ODE_Lorenz().to(device)
+        model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model_MSE_100.pt'
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+        print("Finished Loading model")
+ 
+        data = simulate(model, ti, tf, init_state.to(device), time_step)
+        data = data.detach().cpu().numpy()
 
-        ax2.scatter(x, z, c=z, s = 3,cmap='plasma', alpha=0.5)
-        ax2.set_xlabel("X")
-        ax2.set_ylabel("Z")
+        # limit = 50000
+        x = data[10000:, 0]
+        y = data[10000:, 1]
+        z = data[10000:, 2]
 
-        ax3.scatter(y, z, c=z, s = 3,cmap='plasma', alpha=0.5)
-        ax3.set_xlabel("Y")
-        ax3.set_ylabel("Z")
+        axs[0,0].scatter(true_x, true_y, c=true_z, s = 6, cmap='plasma', alpha=0.5)
+        axs[0,0].set_xlabel("X", fontsize=36)
+        axs[0,0].set_ylabel("Y", fontsize=36)
+        axs[0,0].tick_params(labelsize=36)
 
+        axs[0,1].scatter(true_x, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
+        axs[0,1].set_xlabel("X", fontsize=36)
+        axs[0,1].set_ylabel("Z", fontsize=36)
+        axs[0,1].tick_params(labelsize=36)
+
+        axs[0,2].scatter(true_y, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
+        axs[0,2].set_xlabel("Y", fontsize=36)
+        axs[0,2].set_ylabel("Z", fontsize=36)
+        axs[0,2].tick_params(labelsize=36)
+
+        # NODE
+        axs[1,0].scatter(x, y, c=z, s = 6, cmap='plasma', alpha=0.8)
+        axs[1,0].set_xlabel("X", fontsize=36)
+        axs[1,0].set_ylabel("Y", fontsize=36)
+        axs[1,0].tick_params(labelsize=36)
+
+        axs[1,1].scatter(x, z, c=z, s = 6,cmap='plasma', alpha=0.8)
+        axs[1,1].set_xlabel("X", fontsize=36)
+        axs[1,1].set_ylabel("Z", fontsize=36)
+        axs[1,1].tick_params(labelsize=36)
+
+        axs[1,2].scatter(y, z, c=z, s = 6,cmap='plasma', alpha=0.8)
+        axs[1,2].set_xlabel("Y", fontsize=36)
+        axs[1,2].set_ylabel("Z", fontsize=36)
+        axs[1,2].tick_params(labelsize=36)
+
+        tight_layout()
         #plt.colorbar(sc)
         fig.savefig(path, format='pdf', dpi=1200)
     
@@ -101,7 +136,7 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
         model.load_state_dict(torch.load(model_path))
         model.eval()
         print("Finished Loading model")
-
+ 
         data = simulate(model, ti, tf, init_state.to(device), time_step)
         data = data.detach().cpu().numpy()
 
@@ -487,6 +522,28 @@ def plot_loss(MSE_train, MSE_test, J_train, J_test):
 
     return
 
+def plot_loss_MSE(MSE_train, MSE_test):
+    fig, axs = subplots(1, figsize=(24, 12)) #, sharey=True
+    fig.suptitle("Loss Behavior of MSE Loss", fontsize=24)
+    
+    colors = cm.tab20b(np.linspace(0, 1, 20))
+
+    # Training Loss
+    x = np.arange(0, MSE_train.shape[0])
+
+    axs.plot(x[500:], MSE_train[500:], c=colors[15], label='Train Loss', alpha=0.9, linewidth=5)
+    axs.plot(x[500:], MSE_test[500:], c=colors[1], label='Test Loss', alpha=0.9, linewidth=5)
+    axs.grid(True)
+    axs.legend(loc='best', fontsize=20)
+    # axs.set_ylabel(r'$\mathcal{L}$', fontsize=24)
+    axs.set_xlabel('Epochs', fontsize=24)
+    axs.tick_params(labelsize=24)
+
+    tight_layout()
+    savefig('../plot/loss_behavior_MSE.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
+
+    return
+
 
 
 
@@ -494,16 +551,18 @@ def plot_loss(MSE_train, MSE_test, J_train, J_test):
 if __name__ == '__main__':
 
 
-    '''MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withoutJ.csv", delimiter=",", dtype=float)
-    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withoutJ.csv", delimiter=",", dtype=float)
-    J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withJ.csv", delimiter=",", dtype=float)
-    J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withJ.csv", delimiter=",", dtype=float)
+    '''MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss.csv", delimiter=",", dtype=float)
+    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss.csv", delimiter=",", dtype=float)
+    #J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withJ.csv", delimiter=",", dtype=float)
+    #J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withJ.csv", delimiter=",", dtype=float)
     
-    plot_loss(MSE_train, MSE_test, J_train, J_test)'''
+    plot_loss_MSE(MSE_train, MSE_test)
+    #plot_loss(MSE_train, MSE_test, J_train, J_test)'''
+
 
     #----- test plot_3d_space() -----#
-    '''device = "cuda" if torch.cuda.is_available() else "cpu"
-    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], False, 40000, 50000)'''
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000)
 
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
 
@@ -547,7 +606,7 @@ if __name__ == '__main__':
 
     # ----- correlation plot ----- #
     
-    #1. initialize
+    '''#1. initialize
     t= 100
     dt= 0.01
     tf = 1000
@@ -599,5 +658,5 @@ if __name__ == '__main__':
     ax.legend(["rk4", "Neural ODE"], fontsize=24)
 
     path = '../plot/'+'Fourier.png'
-    fig.savefig(path, format='png', dpi=400)
+    fig.savefig(path, format='png', dpi=400)'''
 

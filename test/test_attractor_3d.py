@@ -45,18 +45,18 @@ def lorenz_func(t, u):
     return du
 
 
-
 @numba.jit(parallel=True)
-def compute_trajectory(traj, N, len_T, dt):
+def compute_trajectory(traj, N, len_T, dt, model):
     for n in prange(N):  # Use prange for parallel looping
+        print("n", n)
         for i in range(1, len_T):
             u = traj[n, i - 1, :]
-            du = lorenz_func(0., u)
-            traj[n, i, :] = traj[n, i - 1, :] + dt * du
-            # traj[n, i, :] = torchdiffeq.odeint(lorenz, torch.tensor(u), torch.linspace(0, 0.01, 2), method='euler', rtol=1e-8)[-1].numpy()
+            #du = lorenz_func(0., u)
+            #du = model(torch.tensor(u).to(device))
+            # traj[n, i, :] = traj[n, i - 1, :] + dt * du.detach().cpu().numpy()
+            traj[n, i, :] = torchdiffeq.odeint(model, torch.tensor(u).to(device), torch.linspace(0, 0.01, 2), method='euler', rtol=1e-8)[-1].detach().cpu().numpy()
 
 # Call the parallelized function
-device = torch.device('cuda')
 N_trajectories = 1500  # Number of initial points
 np.random.seed(42)
 bound_attractor = 50.
@@ -68,12 +68,21 @@ dt = 0.01
 T = np.arange(0, 100, dt)
 len_T = T.shape[0]
 
+# Load the saved model
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = ODE_Lorenz().to(device).double()
+# Pick the model!
+model_path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_MSE_0.pt'
+model.load_state_dict(torch.load(model_path))
+model.eval()
+print("Finished Loading model")
+
 # initialize N traj
 traj = np.zeros((N_trajectories, len_T, 3))  # N trajectories x number of time steps x dimensions of Lorenz
 traj[:, 0, :] = x0
 
 start = time.time()
-compute_trajectory(traj, N_trajectories, len_T, dt)
+compute_trajectory(traj, N_trajectories, len_T, dt, model)
 end = time.time()
 
 print("Elapsed time = %s" % (end - start))
@@ -124,9 +133,9 @@ colors = plt.cm.hsv(np.linspace(0, 1, N_trajectories))
 # gist_rainbow
 
 # set up lines and points
-lines = [ax.plot([], [], [], '-', c=c, alpha=1., linewidth=2)[0]
+lines = [ax.plot([], [], [], '-', c=c, alpha=0.9, linewidth=1.5)[0]
 for c in colors]
-pts = [ax.plot([], [], [], 'o', c=c, alpha=0.95, markersize=2)[0]
+pts = [ax.plot([], [], [], 'o', c=c, alpha=0.95, markersize=1.6)[0]
 for c in colors]
 
 
@@ -189,7 +198,7 @@ def animate(i):
 
 # instantiate the animator.
 anim = animation.FuncAnimation(fig, animate, init_func=init, frames=1000, interval=20, blit=True)
-anim.save('animation.gif', writer='PillowWriter', fps=500)
+anim.save('animation.gif', writer='PillowWriter')
 
 # Save as mp4. This requires mplayer or ffmpeg to be installed
 # anim.save('lorentz_attractor.mp4', fps=15) #extra_args=['-vcodec', 'libx264']
