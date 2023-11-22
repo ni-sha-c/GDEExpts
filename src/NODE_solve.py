@@ -460,7 +460,7 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     ax.legend(['x component', 'approx slope'], fontsize=20)
     ax.tick_params(labelsize=24)
     tight_layout()
-    fig.savefig('../test_result/expt_'+str(dyn_sys)+"/"+str(optimizer_name)+"/"+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
+    fig.savefig('../test_result/expt_'+str(dyn_sys)+"/"+str(optimizer_name)+"/"+str(time_step)+"/"+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 

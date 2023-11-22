@@ -74,9 +74,11 @@ if __name__ == '__main__':
     print("real time: ", real_time)
 
     # Generate Training/Test/Multi-Step Prediction Data
-    traj = simulate(dyn_sys_func, 0, args.integration_time, x0, args.time_step)
+    whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
+    training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
     longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
-    dataset = create_data(traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
+
+    dataset = create_data(training_traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
@@ -120,13 +122,15 @@ if __name__ == '__main__':
     torch.save(m.state_dict(), model_path)
     print("Saved new model!")
 
+    # Save whole trajectory
+    np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"whole_traj.csv", np.asarray(whole_traj.detach().cpu()), delimiter=",")
+
     # Save Training/Test Loss
     loss_hist = torch.stack(loss_hist)
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"training_loss.csv", np.asarray(loss_hist.detach().cpu()), delimiter=",")
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-
     LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
     print("NODE LE: ", LE_NODE)
 

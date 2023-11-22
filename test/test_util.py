@@ -40,82 +40,79 @@ from examples.Tent_map import *
 
 
 
-def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time, ALL, tran_state, limit):
+def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time, ALL, tran_state, limit, init_state, model_path, pdf_path):
     ''' func: plot true phase or multi-time step simulated phase for 3D dynamic system, each from different random initial point 
         param:  n = num of time step size
                 data = simulated or true trajectory
                 dyn_sys = dynamical system (str)
                 NODE = plot Neural ODE instead of true traj (bool) '''
 
-    DYNSYS_MAP = {'sin' : [sin, 1],
-                  'tent_map' : [tent_map, 1],
-                  'brusselator' : [brusselator, 2],
-                  'lorenz_periodic' : [lorenz_periodic, 3],
-                  'lorenz' : [lorenz, 3]}
-
-    dyn_system, dim = DYNSYS_MAP[dyn_sys]
+    # call h(x) of dynamical system of interest
+    dyn_system, dim = define_dyn_sys(dyn_sys)
     ti, tf = integration_time
-    #init_state = torch.randn(dim)
-    init_state = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01])
+
+    # simulate true trajectory
     true_data = simulate(dyn_system, ti, tf, init_state, time_step)
-    for i in range(true_data.shape[0]):
-        if true_data[i, 0] > 9 and true_data[i, 0] < 10:
-            if true_data[i, 1] > 9 and true_data[i, 1] < 10:
-                print(true_data[i, :])
     n = true_data.shape[0]
 
     # If want to plot either NODE or true trajectory only,
     if ALL == True:
 
-        path = '../plot/three_phase_plot_giveninit2'+'.pdf'
-
         fig, axs = subplots(2, 3, figsize=(36,18))
         my_range = np.linspace(-1,1,n)
-        true_x = true_data[10000:, 0]
-        true_y = true_data[10000:, 1]
-        true_z = true_data[10000:, 2]
+        true_x = true_data[:, 0]
+        true_y = true_data[:, 1]
+        true_z = true_data[:, 2]
 
         # Load the saved model
         model = ODE_Lorenz().to(device)
-        model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model_MSE_100.pt'
         model.load_state_dict(torch.load(model_path))
         model.eval()
         print("Finished Loading model")
  
-        data = simulate(model, ti, tf, init_state.to(device), time_step)
+        # simulate NODE trajectory
+        data = simulate(model.double(), ti, tf, init_state.double().to(device), time_step)
         data = data.detach().cpu().numpy()
 
         # limit = 50000
-        x = data[10000:, 0]
-        y = data[10000:, 1]
-        z = data[10000:, 2]
+        x = data[:, 0]
+        y = data[:, 1]
+        z = data[:, 2]
 
+        cmap = cm.plasma
+
+        axs[0,0].plot(true_x[0], true_y[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,0].scatter(true_x, true_y, c=true_z, s = 6, cmap='plasma', alpha=0.5)
         axs[0,0].set_xlabel("X", fontsize=36)
         axs[0,0].set_ylabel("Y", fontsize=36)
         axs[0,0].tick_params(labelsize=36)
 
+        axs[0,1].plot(true_x[0], true_z[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,1].scatter(true_x, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
         axs[0,1].set_xlabel("X", fontsize=36)
         axs[0,1].set_ylabel("Z", fontsize=36)
         axs[0,1].tick_params(labelsize=36)
 
+        axs[0,2].plot(true_y[0], true_z[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,2].scatter(true_y, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
         axs[0,2].set_xlabel("Y", fontsize=36)
         axs[0,2].set_ylabel("Z", fontsize=36)
         axs[0,2].tick_params(labelsize=36)
 
         # NODE
+        axs[1,0].plot(x[0], y[0], '+', markersize=15, color=cmap.colors[0])
         axs[1,0].scatter(x, y, c=z, s = 6, cmap='plasma', alpha=0.8)
         axs[1,0].set_xlabel("X", fontsize=36)
         axs[1,0].set_ylabel("Y", fontsize=36)
         axs[1,0].tick_params(labelsize=36)
 
+        axs[1,1].plot(x[0], z[0], '+', markersize=15, color=cmap.colors[0])
         axs[1,1].scatter(x, z, c=z, s = 6,cmap='plasma', alpha=0.8)
         axs[1,1].set_xlabel("X", fontsize=36)
         axs[1,1].set_ylabel("Z", fontsize=36)
         axs[1,1].tick_params(labelsize=36)
 
+        axs[1,2].plot(y[0], z[0], '+', markersize=15, color=cmap.colors[0])
         axs[1,2].scatter(y, z, c=z, s = 6,cmap='plasma', alpha=0.8)
         axs[1,2].set_xlabel("Y", fontsize=36)
         axs[1,2].set_ylabel("Z", fontsize=36)
@@ -123,16 +120,15 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         tight_layout()
         #plt.colorbar(sc)
-        fig.savefig(path, format='pdf', dpi=1200)
+        fig.savefig(pdf_path, format='pdf', dpi=1200)
     
     # If want to plot comparison plot between NODE vs true trajectory
     else:
-        print("Plot comparison!")
-        path = '../plot/Compare_phase_plot_trans_100_2nd' + str(tran_state) +'.pdf'
+        print("Plot 2 phase plot!")
+        #path = '../plot/Compare_phase_plot_trans_100_2nd' + str(tran_state) +'.pdf'
 
         # Load the saved model
         model = ODE_Lorenz().to(device)
-        model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(model_path))
         model.eval()
         print("Finished Loading model")
@@ -149,15 +145,15 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
         y_true = true_data[tran_state:limit, 1]
         z_true = true_data[tran_state:limit, 2]
         t = torch.arange(ti, tf, time_step)[tran_state:limit]
-        print("t", t.shape)
-        print("x", x.shape)
-        print("x_true", x_true.shape)
 
         fig = figure(figsize=(18, 6))
         gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 0.05])  # 3 columns: 2 for subplots and 1 for colorbar
 
+        cmap = cm.winter
+
         # Create the first subplot
         ax1 = subplot(gs[0])
+        ax1.plot(x[0], z[0], '+', markersize=15, color=cmap.colors[0])
         ax1.scatter(x, z, c=t, s = 4, cmap='winter', alpha=0.5)
         ax1.set_xlabel("X", fontsize=24)
         ax1.set_ylabel("Z", fontsize=24)
@@ -166,6 +162,7 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         # Create the second subplot
         ax2 = subplot(gs[1], sharey=ax1)  # sharey ensures equal height
+        ax2.plot(x_true[0], z_true[0], '+', markersize=15, color=cmap.colors[0])
         sc = ax2.scatter(x_true, z_true, c=t, s = 4,cmap='winter', alpha=0.5)
         ax2.set_xlabel("X", fontsize=24)
         ax2.set_ylabel("Z", fontsize=24)
@@ -177,7 +174,7 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
         cbar = colorbar(sc, cax=cax)
         tight_layout()
 
-        fig.savefig(path, format='pdf', dpi=1200)
+        fig.savefig(pdf_path, format='pdf', dpi=1200)
     return
 
 
@@ -522,6 +519,7 @@ def plot_loss(MSE_train, MSE_test, J_train, J_test):
 
     return
 
+
 def plot_loss_MSE(MSE_train, MSE_test):
     fig, axs = subplots(1, figsize=(24, 12)) #, sharey=True
     fig.suptitle("Loss Behavior of MSE Loss", fontsize=24)
@@ -545,11 +543,49 @@ def plot_loss_MSE(MSE_train, MSE_test):
     return
 
 
+def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_step):
+    # call h(x) of dynamical system of interest
+    dyn_system, dim = define_dyn_sys(dyn_sys)
+    ti, tf = integration_time
+
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    pdf_path = '../plot/dist_'+str(model_name)+'_'+str(init_state.tolist())+'.pdf'
+
+    # simulate true trajectory
+    true_data = simulate(dyn_system, ti, tf, init_state, time_step)
+
+    # Load the saved model
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = ODE_Lorenz().to(device)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+    # simulate node trajectory
+    node_data = simulate(model, ti, tf, init_state.to(device), time_step).detach().cpu()
+
+    # plot
+    fig, ax = subplots(1, figsize=(12, 6)) #, sharey=True
+    ax.hist(true_data[:, 0], alpha=0.5, color=(0.25, 0.25, 0.25))
+    ax.hist(node_data[:, 0], alpha=0.5, color="slateblue")
+
+    ax.grid(True)
+    # ax.set_title(r"Disbribution of X", fontsize=24)
+    ax.legend(['rk4', 'NODE'], fontsize=24)
+    ax.xaxis.set_tick_params(labelsize=24)
+    ax.yaxis.set_tick_params(labelsize=24)
+    tight_layout()
+    savefig(pdf_path, format='pdf', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    return
+
+
 
 
 
 if __name__ == '__main__':
 
+    '''# init_state = torch.tensor([1.,1.,-1.])
+    init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
+    plot_distribution("lorenz", [0, 500], "MSE_0", init_state, 0.01)'''
 
     '''MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss.csv", delimiter=",", dtype=float)
     MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss.csv", delimiter=",", dtype=float)
@@ -560,11 +596,27 @@ if __name__ == '__main__':
     #plot_loss(MSE_train, MSE_test, J_train, J_test)'''
 
 
-    #----- test plot_3d_space() -----#
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000)
+    '''#----- test plot_3d_space() -----#
+    time_step = 0.01
+    model = "MSE_300"
 
-    #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
+    # in attractor/ call training point: load csv file, 90*int(1/time_step)
+    # traj = np.loadtxt("../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/whole_traj.csv', delimiter=",", dtype=float)
+    # init_state = torch.tensor(traj[90*int(1/time_step), :]).double()
+    # print(init_state)
+
+    # out of attractor
+    # init_state = torch.tensor([1.,1.,-1.])
+    init_state = torch.tensor([9.39,9.51,28.06])
+
+    # call model
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/model.pt'
+    pdf_path = '../plot/three_phase_plot_'+str(model)+'_'+str(init_state.tolist())+'.pdf'
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000, init_state, model_path, pdf_path)
+
+    #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)'''
 
 
     #----- test bifurcation plot -----#

@@ -107,35 +107,113 @@ if __name__ == '__main__':
     dt = 0.01
     integration = 100
     len_integration = integration*int(1/dt)
-    tau = 600
+    tau = 500
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    init = 5* torch.rand(3).to(device)
-    # init = torch.tensor([9.390855789184570312e+00,9.506474494934082031e+00,2.806442070007324219e+01]).to(device)
+    #init = torch.tensor([1., 1., -1.]).to(device)
+    init = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01]).to(device)
 
-    trans = 100
+    trans = 0
     len_trans = trans*int(1/dt)
 
     time = torch.arange(0, trans+integration+tau+1, dt)
+    corr_list, node_corr_list = [], []
+
+    # simulate true
     traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)[len_trans:].cpu()
+
+    # simulate Neural ODE
+    model_name = "JAC_0"
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+str(model_name)+'/model.pt'
+    pdf_path = '../plot/corr_'+str(model_name)+'_'+str(torch.round(init, decimals=4).tolist())+'.pdf'
+    # Load the saved model
+    model = ODE_Lorenz().to(device)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+    # simulate NODE trajectory
+    data = torchdiffeq.odeint(model, init, time, method='rk4', rtol=1e-8)[len_trans:].detach().cpu()
 
     # x(0 : t)
     base_traj_x = np.array(traj[:len_integration, 0])
-    #base_traj_x = np.array(traj[:, 0])
-
+    node_base_traj_x = np.array(data[:len_integration, 0])
+    
     # Iterate over from 0 ... tau-1
-    for i in range(tau):
+    for i in range(tau*int(1/dt)):
 
         # # z(0 + Tau: t + Tau)
-        len_tau = i*int(1/dt)
+        len_tau = i #i*int(1/dt)
         tau_traj_z = np.array(traj[len_tau: len_tau+len_integration, 2])
 
         # # compute corr between
-        # corr = np.abs(np.dot(tau_traj_z, base_traj_x))/len_integration - np.mean(np.array(traj[:, 0]))*np.mean(np.array(traj[:, 2]))
-        corr = np.correlate(tau_traj_z, base_traj_x)/len_integration #- np.mean(np.array(traj[:, 0]))*np.mean(np.array(traj[:, 0]))
+        corr = np.correlate(tau_traj_z, base_traj_x)/len_integration - np.mean(np.array(traj[:, 0]))*np.mean(np.array(traj[:, 2]))
+        corr_list.append(corr)
         print(i, corr)
 
+    # Iterate over from 0 ... tau-1
+    for i in range(tau*int(1/dt)):
 
+        # # z(0 + Tau: t + Tau)
+        len_tau = i #i*int(1/dt)
+        tau_traj_z = np.array(data[len_tau: len_tau+len_integration, 2])
+
+        # # compute corr between
+        node_corr = np.correlate(tau_traj_z, node_base_traj_x)/len_integration - np.mean(np.array(data[:, 0]))*np.mean(np.array(data[:, 2]))
+        node_corr_list.append(node_corr)
+        print(i, node_corr)
+
+
+    tau_x = np.linspace(0, tau, tau*int(1/dt))
+    corr_list = np.array(corr_list)
+    node_corr_list = np.array(node_corr_list)
+
+    # savefig
+    fig, ax = subplots(figsize=(36,12))
+    ax.plot(tau_x, corr_list, color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=0.8)
+    ax.plot(tau_x, node_corr_list, color="slateblue", marker='o', linewidth=4, alpha=0.8)
+
+    ax.grid(True)
+    ax.set_xlabel(r"$\tau$", fontsize=24)
+    ax.set_ylabel(r"$C_{x,x}(\tau)$", fontsize=24)
+    ax.tick_params(labelsize=24)
+    ax.legend(["rk4", "Neural ODE"], fontsize=24)
+
+    fig.savefig(pdf_path, format='pdf', dpi=400)
+
+
+    # Compute Fourier
+    rk4_fourier = scipy.fft.rfft(corr_list)
+    node_fourier = scipy.fft.rfft(node_corr_list)
+
+    N = len(rk4_fourier)
+    sampling_rate = 1/(2*np.pi)
+    T = N/sampling_rate
+    freq = np.arange(N)/T
+
+    # get the one sided spectrum
+    n_oneside = N //2
+    # get one side frequency
+    f_oneside = freq[:n_oneside]
+    
+    # 5. plot Fourier
+    fig, ax = subplots(figsize=(36,12))
+    ax.plot(f_oneside, np.abs(rk4_fourier[:n_oneside]), color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
+    ax.plot(f_oneside, np.abs(node_fourier[:n_oneside]), color="slateblue", marker='o', linewidth=4, alpha=1)
+
+    ax.grid(True)
+    #ax.set_xlabel(r"$Frequency$", fontsize=24)
+    ax.set_ylabel(r"$F(C_{x,z}(\tau))$", fontsize=24)
+    ax.tick_params(labelsize=24)
+    ax.legend(["rk4", "Neural ODE"], fontsize=24)
+
+    # path = '../plot/'+'Fourier.png'
+    pdf_path = '../plot/fourier_'+str(model_name)+'_'+str(torch.round(init, decimals=4).tolist())+'.pdf'
+    fig.savefig(pdf_path, format='pdf', dpi=400)
+
+
+
+    #len_tau = torch.linspace(0, tau, tau.shape[0])
+    #plot_correlation("lorenz", len_tau, val, node_val, t)
 
         # corr = scipy.signal.correlate( base_traj_x, tau_traj_z, mode="same") #/ len_tau #- np.mean(tau_traj_z)*np.mean(base_traj_x)
 
@@ -150,6 +228,7 @@ if __name__ == '__main__':
 
 
     # # ----- correlation plot ----- #
+
     
     # #1. initialize
     # t= 100
@@ -176,32 +255,4 @@ if __name__ == '__main__':
     #     rk4_val = np.array(res)
     #     node_val = np.array(node_res)
 
-    '''# 3. compute Fourier
-    rk4_fourier = scipy.fft.rfft(rk4_val)
-    node_fourier = scipy.fft.rfft(node_val)
-    normalize = rk4_val.shape[0] / 2
-    print(normalize)
-
-    freq_axis = scipy.fft.rfftfreq(rk4_val.shape[0], 1/0.01)
-        
-    # 4. plot correlation
-    print("initial point:", init)
-    print(rk4_val)
-    print(node_val)
-    len_tau = torch.linspace(0, tf, tau.shape[0])
-    plot_correlation("lorenz", len_tau, np.abs(rk4_val), np.abs(node_val), t)
     
-    # 5. plot Fourier
-    fig, ax = subplots(figsize=(36,12))
-    ax.plot(np.abs(rk4_fourier/normalize), color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
-    ax.plot(np.abs(node_fourier/normalize), color="slateblue", marker='o', linewidth=4, alpha=1)
-
-    ax.grid(True)
-    #ax.set_xlabel(r"$Frequency$", fontsize=24)
-    ax.set_ylabel(r"$F(C_{x,z}(\tau))$", fontsize=24)
-    ax.tick_params(labelsize=24)
-    ax.legend(["rk4", "Neural ODE"], fontsize=24)
-
-    path = '../plot/'+'Fourier.png'
-    fig.savefig(path, format='png', dpi=400)'''
-

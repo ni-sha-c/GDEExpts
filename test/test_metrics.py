@@ -67,7 +67,7 @@ def relative_error(optim_name, time_step):
 
 
 
-def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
+def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component, model_name):
     ''' func: plot |avg(z_tau) - avg(z_t)| '''
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -76,12 +76,12 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
     # Initialize integration times
     taus = torch.arange(1, tau+1) # 1 ~ 100
     len_taus = taus.shape[0]
-    diff_time_avg_rk4 = torch.zeros(len_taus)
-    diff_time_avg_node = torch.zeros(len_taus)
+    diff_time_avg_rk4 = torch.zeros(len_taus*int(1/time_step))
+    diff_time_avg_node = torch.zeros(len_taus*int(1/time_step))
 
     # Load the saved model
-    model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=3, n_hidden=64, T=time_step).double()
-    path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+    model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=3, n_hidden=64, T=time_step)
+    path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+str(model_name)+'/model.pt'
     model.load_state_dict(torch.load(path))
     model.eval()
 
@@ -94,24 +94,18 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
     # rk4_tau
     sol_tau = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
     time_avg_tau_rk4 = torch.mean(sol_tau[:, component])
+
     # node_tau
-    for i in range(tau):
-        phi_tau[i] = x # shape [3]
-        cur_pred = model(x.double())
-        x = cur_pred
+    phi_tau = torchdiffeq.odeint(model, init, t_eval_point, method='rk4', rtol=1e-8) 
     time_avg_tau_node = torch.mean(phi_tau[:, component])
 
     #----- Create phi_rk4[:, component] -----#
-    for i in range(len_taus):
-        # create data
-        t = torch.arange(0, taus[i], time_step)
-        sol_n = torchdiffeq.odeint(lorenz, init, t, method='rk4', rtol=1e-8) 
+    for i in range(len_taus*int(1/time_step)):
 
         # compute time average at integration time = n
-        time_avg_rk4 = torch.mean(sol_n[:, component])
-
+        time_avg_rk4 = torch.mean(sol_tau[:i, component])
         # calculate average and difference
-        diff_time_avg_rk4[i] = torch.abs(time_avg_rk4 - time_avg_tau_rk4)
+        diff_time_avg_rk4[i] = time_avg_rk4 - time_avg_tau_rk4
 
     print("mean rk4: ", time_avg_tau_rk4)
     print("sanity check rk4: ", diff_time_avg_rk4[-1])
@@ -119,39 +113,42 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component):
 
     #----- Create phi_NODE[:, component] -----#
     x = init.to(device)
-    for i in range(len_taus):
-        temp = torch.zeros(i, 3).to(device)
-        # create data
-        for j in range(i):
-            temp[j] = x # shape [3]
-            cur_pred = model(x.double())
-            x = cur_pred
+    for i in range(len_taus*int(1/time_step)):
 
         # compute time average at integration time = n
-        time_avg_n = torch.mean(temp[:, component])
-
+        time_avg_n = torch.mean(phi_tau[:i, component])
         # calculate average and difference
-        diff_time_avg_node[i] = torch.abs(time_avg_n - time_avg_tau_rk4)
+        diff_time_avg_node[i] = time_avg_n - time_avg_tau_rk4 #time_avg_tau_node
+         #
+
         print("diff: ", i, diff_time_avg_node[i], "\n")
+
     print("model mean: ", time_avg_tau_node)
     print("sanity check node: ", diff_time_avg_node[-1], "\n")
 
 
-    fig, ax = subplots()
-    taus_log = np.log(taus.numpy())
-    y1 = diff_time_avg_node.detach().numpy()
-    y2 = diff_time_avg_rk4.detach().numpy()
-    ax.plot(taus_log, np.log(y1, out=np.zeros_like(y1), where=(y1!=0)), ".", ms = 10.0)
-    ax.plot(taus_log, np.log(y2, out=np.zeros_like(y2), where=(y2!=0)), ".", ms = 10.0)
+    fig, ax = subplots(figsize=(20,10))
+    # taus_log = np.log(taus.numpy())
+    taus_x = np.arange(0, tau, time_step)
+    rk4 = np.abs(diff_time_avg_rk4.detach().numpy())
+    node = np.abs(diff_time_avg_node.detach().numpy())
+    rk4[-1], node[-1] = 1e-3, 1e-3
+
+
+    ax.semilogy(np.log10(taus_x), rk4, color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
+    ax.semilogy(np.log10(taus_x), node, color="slateblue", marker='o', linewidth=4, alpha=1)
+
     ax.grid(True)
-    ax.set_xlabel(r"$n \times \delta t$", fontsize=20)
-    ax.set_ylabel(r"log $|\bar z(\tau) - \bar z|$", fontsize=20)
-    ax.set_title(r"Log-log Plot for Time Average Convergence")
-    ax.legend(['NODE', 'rk4'])
-    ax.xaxis.set_tick_params(labelsize=20)
-    ax.yaxis.set_tick_params(labelsize=20)
+    ax.set_xlabel(r"$log(n \times \delta t)$", fontsize=24)
+    ax.set_ylabel(r"log $|\bar z(\tau) - \bar z|$", fontsize=24)
+    ax.set_title(r"Log-log Plot for Time Average Convergence", fontsize=24)
+    ax.legend(['rk4', 'NODE'], fontsize=24)
+    ax.xaxis.set_tick_params(labelsize=24)
+    ax.yaxis.set_tick_params(labelsize=24)
     tight_layout()
-    fig.savefig("../plot/time_avg_convergence.png")
+
+    pdf_path = '../plot/timeavg_'+str(model_name)+'_'+str(torch.round(init, decimals=4).tolist())+'.pdf'
+    fig.savefig(pdf_path, format='pdf', dpi=400)
 
     return
 
@@ -344,19 +341,22 @@ if __name__ == '__main__':
     test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz")'''
 
     # ----- compute lyapunov exponent ----- #
-    x = torch.randn(3)
+    '''x = torch.randn(3)
     t_eval_point = torch.arange(0,500,1e-2)
     true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) #transition phase
     # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
     LE_node = lyap_exps("lorenz", [lorenz, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
-    print("NODE: ", LE_node)
+    print("NODE: ", LE_node)'''
     
     # LE_rk4, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
     # print("rk4 LE: ", LE_rk4)
 
     # relative_error(optim_name="AdamW", time_step=0.01)
     # fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
-    # plot_time_average(x, dyn_sys="lorenz", time_step=0.01, optim_name='AdamW', tau=100, component=2)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    #init = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
+    init = torch.tensor([1., 1., -1.])
+    plot_time_average(init.to(device), dyn_sys="lorenz", time_step=0.01, optim_name='AdamW', tau=500, component=2, model_name="JAC_0")
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
     #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
