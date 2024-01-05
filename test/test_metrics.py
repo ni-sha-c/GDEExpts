@@ -89,10 +89,15 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component, mode
     t_eval_point = torch.arange(0, tau, time_step)
     iters = t_eval_point.shape[0]
     x = init.to(device)
+    init_2 = torch.tensor([1., 0., 0.])
+
     phi_tau = torch.zeros(tau, 3).to(device)
     
     # rk4_tau
     sol_tau = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
+    time_avg_tau_rk4 = torch.mean(sol_tau[:, component])
+
+    sol_tau_2 = torchdiffeq.odeint(lorenz, init_2, t_eval_point, method='rk4', rtol=1e-8) 
     time_avg_tau_rk4 = torch.mean(sol_tau[:, component])
 
     # node_tau
@@ -326,12 +331,41 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
     return
     
 
+def compute_wasserstein(device, int_time, init_state, time_step, model_name):
+    ti, tf = int_time
+
+    # Load the saved model
+    model = ODE_Lorenz().to(device)
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+
+    node_data = simulate(model, ti, tf, init_state, time_step)
+    node_data = node_data.detach().cpu().numpy()
+    true_data = simulate(lorenz, ti, tf, init_state, time_step).detach().cpu().numpy()
+
+    # Compute Wasserstein Distance
+    dist_x = wasserstein_distance(node_data[:, 0], true_data[:, 0])
+    dist_y = wasserstein_distance(node_data[:, 1], true_data[:, 1])
+    dist_z = wasserstein_distance(node_data[:, 2], true_data[:, 2])
+    print(dist_x, dist_y, dist_z)
+
+    return
 
 
 
 ##### ----- test run ----- #####
 if __name__ == '__main__':
     torch.set_printoptions(sci_mode=False, precision=5)
+
+    # ---- Test Wasserstein Distance ----- #
+    '''init_state = torch.tensor([1.,1.,-1.])
+    # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    compute_wasserstein(device, [0, 500], init_state.to(device), 0.01, "JAC_300")'''
 
     # ----- Test Jacobian ----- #
     '''device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -355,7 +389,7 @@ if __name__ == '__main__':
     # fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     #init = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
-    init = torch.tensor([1., 1., -1.])
+    init = torch.tensor([1., 0., 0.])
     plot_time_average(init.to(device), dyn_sys="lorenz", time_step=0.01, optim_name='AdamW', tau=500, component=2, model_name="JAC_0")
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)

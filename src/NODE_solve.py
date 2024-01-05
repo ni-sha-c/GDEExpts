@@ -151,13 +151,48 @@ def create_iterables(dataset, batch_size):
     return train_iter, test_iter
 
 
+def auto_corr(y_hat, device):
+    ''' computing auto_corr in batch 
+        input = 1D time series 
+        output = scalar '''
+
+    window_size = 9000 #90 in real time
+    step = 1
+    tau = y_hat.shape[0] - window_size #100
+    # corr = torch.zeros(tau).to(device)
+    list_i = torch.arange(0, tau+1, step) # 0 ... tau
+    component = 2 # indicator function
+
+    base_line = y_hat[0:window_size, component]
+    subseq = torch.stack([y_hat[i:i+window_size, component] for i in list_i]).to(device)
+
+    def corr_val(subseq):
+        return torch.dot(torch.flatten(base_line).to(device), torch.flatten(subseq))
+        # return _corr(base_line.to(device), subseq)
+
+    # Use torch.vmap
+    batch_corr_val = torch.vmap(corr_val)
+    corr = batch_corr_val(subseq).to(device)
+    print(corr.shape)
+
+    corr = corr/window_size - torch.mean(y_hat)**2
+    tau_x = torch.arange(0, tau+1, step)
+
+    return tau_x, corr
+
+
+# ------------- #
+# Jacobian Loss #
+# ------------- #
+
+
 def jacobian_loss(True_J, cur_model_J, output_loss):
-    reg_param = 0.11
+    reg_param = 1e-5 #5e-4 was working well #0.11
 
     diff_jac = True_J - cur_model_J
     norm_diff_jac = torch.norm(diff_jac)
 
-    total_loss = reg_param * norm_diff_jac + output_loss
+    total_loss = reg_param * norm_diff_jac**2 + output_loss
 
     return total_loss
 
@@ -171,6 +206,7 @@ def jacobian_parallel(dyn_sys, model, X, t_eval_point, device, node):
         results = pool.map(single_jacobian, [(dyn_sys_f, model, x, t_eval_point, device, node) for x in X])
 
     return results
+
 
 def single_jacobian(args):
     '''Compute Jacobian of dyn_sys
@@ -193,7 +229,85 @@ def Jacobian_Matrix(input, sigma, r, b):
 
 
 
-def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, minibatch=False, batch_size=0):
+def ac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, rho, minibatch=False, batch_size=0):
+
+    # Initialize
+    pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
+    optimizer = define_optimizer(optim_name, model, lr, weight_decay)
+    X, Y, X_test, Y_test = dataset
+    X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
+    num_train = X.shape[0]
+    
+    # Compute True Autocorr
+    print("Auto_corr")
+    reg_param = 1e-5
+    t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
+    tau_x, true_list = auto_corr(Y, device)
+
+
+    for i in range(epochs): # looping over epochs
+        model.train()
+        model.double()
+
+        if minibatch == True:
+            train_iter, test_iter = create_iterables(dataset, batch_size=batch_size)
+            y_pred = torch.zeros(len(train_iter), batch_size, 3)
+            y_true = torch.zeros(len(train_iter), batch_size, 3)
+            k = 0
+
+            for xk, yk in train_iter:
+                xk = xk.to(device) # [batch size,3]
+                yk = yk.to(device)
+                output = model(xk)
+
+                # save predicted node feature for analysis
+                y_pred[k] = output
+                y_true[k] = yk
+                k += 1
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, y_true)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(y_true.detach().cpu().numpy())
+
+        elif minibatch == False:
+
+            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
+
+            optimizer.zero_grad()
+            # MSE Output Loss
+            MSE_loss = criterion(y_pred, Y)
+
+            # Jacobian Diff Loss
+            tau_x, pred_list = auto_corr(y_pred, device)
+            train_loss = reg_param * torch.norm(pred_list - true_list)**2 + MSE_loss
+            train_loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(Y.detach().cpu().numpy())
+        
+        loss_hist.append(train_loss)
+        print(i, MSE_loss.item(), train_loss.item())
+
+        ##### test one_step #####
+        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
+        test_loss_hist.append(test_loss)
+
+        ##### test multi_step #####
+        if (i+1) == epochs:
+           error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, error
+
+
+def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, rho, minibatch=False, batch_size=0):
 
     # Initialize
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
@@ -207,7 +321,7 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
     True_J = torch.ones(num_train, 3, 3).to(device)
     for i in range(num_train):
-        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=28.0, b=8/3)
+        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=rho, b=8/3)
     print(True_J.shape)
     print("Finished Computing True Jacobian")
 

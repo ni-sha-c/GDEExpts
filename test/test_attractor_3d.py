@@ -4,10 +4,13 @@ import seaborn as sns
 
 import torch
 import numba
+from numba import cuda
 from numba import prange
 import time
 import torchdiffeq
 
+import matplotlib
+# matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -27,7 +30,16 @@ from examples.Sin import *
 from examples.Tent_map import *
 
 
-@numba.jit(nopython=True)
+'''@cuda.jit
+def simulate_traj(array_init_cond, nsteps, array_traj, dt):
+    pos = cuda.grid(1)
+    if pos < array_init_cond.shape[0]:
+        for i in range(nsteps):
+            array_traj[pos, i] = array_init_cond[pos] + dt*jac(array_init_cond[pos])
+            array_init_cond[pos] = array_traj[pos]
+
+
+@numba.cuda.jit(nopython=False)
 def lorenz_func(t, u):
     # Assuming u is a 1D Numpy array or a Numba-compatible type
     x, y, z = u[0], u[1], u[2]
@@ -45,16 +57,16 @@ def lorenz_func(t, u):
     return du
 
 
-@numba.jit(parallel=True)
+@numba.cuda.jit(nopython=False)
 def compute_trajectory(traj, N, len_T, dt, model):
     for n in prange(N):  # Use prange for parallel looping
         print("n", n)
         for i in range(1, len_T):
             u = traj[n, i - 1, :]
-            #du = lorenz_func(0., u)
-            #du = model(torch.tensor(u).to(device))
-            # traj[n, i, :] = traj[n, i - 1, :] + dt * du.detach().cpu().numpy()
-            traj[n, i, :] = torchdiffeq.odeint(model, torch.tensor(u).to(device), torch.linspace(0, 0.01, 2), method='euler', rtol=1e-8)[-1].detach().cpu().numpy()
+            du = lorenz_func(0., u)
+            du = model(torch.tensor(u).to(device))
+            traj[n, i, :] = traj[n, i - 1, :] + dt * du.detach().cpu().numpy()
+            # traj[n, i, :] = torchdiffeq.odeint(model, torch.tensor(u).to(device), torch.linspace(0, 0.01, 2).to(device), method='euler', rtol=1e-8)[-1].detach().cpu().numpy()
 
 # Call the parallelized function
 N_trajectories = 1500  # Number of initial points
@@ -72,7 +84,8 @@ len_T = T.shape[0]
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = ODE_Lorenz().to(device).double()
 # Pick the model!
-model_path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_MSE_0.pt'
+model_type = "MSE_0"
+model_path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+str(model_type)+'/model.pt'
 model.load_state_dict(torch.load(model_path))
 model.eval()
 print("Finished Loading model")
@@ -82,20 +95,20 @@ traj = np.zeros((N_trajectories, len_T, 3))  # N trajectories x number of time s
 traj[:, 0, :] = x0
 
 start = time.time()
-compute_trajectory(traj, N_trajectories, len_T, dt, model)
+compute_trajectory[](traj, N_trajectories, len_T, dt, model)
 end = time.time()
 
 print("Elapsed time = %s" % (end - start))
-
-
+'''
 
 # Current code is inspired by: https://jakevdp.github.io/blog/2013/02/16/animating-the-lorentz-system-in-3d/
+# https://community.wolfram.com/groups/-/m/t/2466894
 
-'''N_trajectories = 3000
+N_trajectories = 4000 #3000
 
 # Choose random starting points, uniformly distributed from -30 to 30
 np.random.seed(42)
-bound_attractor = 40.
+bound_attractor = 50.
 # Adding np.array([0, 0, -30]) so that attractor lies in the center of cube
 x0 = bound_attractor * np.random.uniform(-1.0, 1.0, (N_trajectories,3)) #15 np.array([-25, 25,-25])+
 print(x0)
@@ -106,14 +119,15 @@ time_step = 0.01
 x0 = torch.tensor(x0).to(device).double()
 model = ODE_Lorenz().to(device).double()
 # Pick the model!
-model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+'model_MSE_0.pt'
+model_type = "MSE_0"
+model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_type)+'/model.pt'
 model.load_state_dict(torch.load(model_path))
 model.eval()
 print("Finished Loading model")
 
-x_t = np.asarray([simulate(model, 0., 15., x0i.double(), 0.01).detach().to('cpu') for x0i in x0])
-print("Trajectory all computed!")'''
-x_t = traj
+x_t = np.asarray([simulate(model, 0., 7., x0i.double(), 0.01).detach().to('cpu') for x0i in x0])
+print("Trajectory all computed!")
+# x_t = traj
 
 # Set up figure & 3D axis for animation
 fig = plt.figure()
@@ -129,13 +143,16 @@ for s, e in itertools.combinations(np.array(list(itertools.product(r, r, r))), 2
         ax.plot3D(*zip(s, e), color="white", linewidth=0.5, alpha=0.5)
 
 # choose a different color for each trajectory
-colors = plt.cm.hsv(np.linspace(0, 1, N_trajectories))
+colors = plt.cm.rainbow(np.linspace(0, 1, N_trajectories))
+# np.linspace(0, 1., N_trajectories)
+# colors = colors[:, 0:3]
+print("color", colors.shape)
 # gist_rainbow
 
 # set up lines and points
-lines = [ax.plot([], [], [], '-', c=c, alpha=0.9, linewidth=1.5)[0]
+lines = [ax.plot([], [], [], '-', c=c, alpha=0.7, linewidth=0.8)[0]
 for c in colors]
-pts = [ax.plot([], [], [], 'o', c=c, alpha=0.95, markersize=1.6)[0]
+pts = [ax.plot([], [], [], 'o', c=c, alpha=0.7, markersize=0.8)[0]
 for c in colors]
 
 
@@ -165,10 +182,10 @@ def animate(i):
     for line, pt, xi in zip(lines, pts, x_t):
         x, y, z = xi[:i].T
 
-        if i > 10 and i < 25:
+        if i > 10 and i < 15:
             x, y, z = xi[i-4:i].T #5
             x_point, y_point, z_point = xi[0:1].T
-        elif i >= 25 and i < 50:
+        elif i >= 15 and i < 50:
             x, y, z = xi[i-10:i].T
         elif i >= 50:
             x, y, z = xi[i-20:i].T
@@ -197,12 +214,14 @@ def animate(i):
 
 
 # instantiate the animator.
-anim = animation.FuncAnimation(fig, animate, init_func=init, frames=1000, interval=20, blit=True)
-anim.save('animation.gif', writer='PillowWriter')
+anim = animation.FuncAnimation(fig, animate, init_func=init, frames=1000, interval=10, blit=True)
+# writervideo = animation.FFMpegWriter(fps=60) 
+# writervideo = animation.FFMpegWriter(fps=30) 
+anim.save('MSE0_4000.gif', dpi=500)
 
 # Save as mp4. This requires mplayer or ffmpeg to be installed
-# anim.save('lorentz_attractor.mp4', fps=15) #extra_args=['-vcodec', 'libx264']
+# anim.save('lorentz_attractor.mp4', fps=30) #extra_args=['-vcodec', 'libx264']
 
-plt.show()
+plt.close()
 
 

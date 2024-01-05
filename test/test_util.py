@@ -10,6 +10,7 @@ from scipy.fft import fft, rfft
 from scipy.integrate import odeint
 from scipy.signal import argrelextrema
 from scipy.signal import correlate
+from scipy.stats import wasserstein_distance
 from test_metrics import *
 
 import os
@@ -83,40 +84,40 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         axs[0,0].plot(true_x[0], true_y[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,0].scatter(true_x, true_y, c=true_z, s = 6, cmap='plasma', alpha=0.5)
-        axs[0,0].set_xlabel("X", fontsize=36)
-        axs[0,0].set_ylabel("Y", fontsize=36)
-        axs[0,0].tick_params(labelsize=36)
+        axs[0,0].set_xlabel("X", fontsize=48)
+        axs[0,0].set_ylabel("Y", fontsize=48)
+        axs[0,0].tick_params(labelsize=48)
 
         axs[0,1].plot(true_x[0], true_z[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,1].scatter(true_x, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
-        axs[0,1].set_xlabel("X", fontsize=36)
-        axs[0,1].set_ylabel("Z", fontsize=36)
-        axs[0,1].tick_params(labelsize=36)
+        axs[0,1].set_xlabel("X", fontsize=48)
+        axs[0,1].set_ylabel("Z", fontsize=48)
+        axs[0,1].tick_params(labelsize=48)
 
         axs[0,2].plot(true_y[0], true_z[0], '+', markersize=15, color=cmap.colors[0])
         axs[0,2].scatter(true_y, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
-        axs[0,2].set_xlabel("Y", fontsize=36)
-        axs[0,2].set_ylabel("Z", fontsize=36)
-        axs[0,2].tick_params(labelsize=36)
+        axs[0,2].set_xlabel("Y", fontsize=48)
+        axs[0,2].set_ylabel("Z", fontsize=48)
+        axs[0,2].tick_params(labelsize=48)
 
         # NODE
         axs[1,0].plot(x[0], y[0], '+', markersize=15, color=cmap.colors[0])
-        axs[1,0].scatter(x, y, c=z, s = 6, cmap='plasma', alpha=0.8)
-        axs[1,0].set_xlabel("X", fontsize=36)
-        axs[1,0].set_ylabel("Y", fontsize=36)
-        axs[1,0].tick_params(labelsize=36)
+        axs[1,0].scatter(x, y, c=z, s = 8, cmap='plasma', alpha=0.8)
+        axs[1,0].set_xlabel("X", fontsize=48)
+        axs[1,0].set_ylabel("Y", fontsize=48)
+        axs[1,0].tick_params(labelsize=48)
 
         axs[1,1].plot(x[0], z[0], '+', markersize=15, color=cmap.colors[0])
-        axs[1,1].scatter(x, z, c=z, s = 6,cmap='plasma', alpha=0.8)
-        axs[1,1].set_xlabel("X", fontsize=36)
-        axs[1,1].set_ylabel("Z", fontsize=36)
-        axs[1,1].tick_params(labelsize=36)
+        axs[1,1].scatter(x, z, c=z, s = 8,cmap='plasma', alpha=0.8)
+        axs[1,1].set_xlabel("X", fontsize=48)
+        axs[1,1].set_ylabel("Z", fontsize=48)
+        axs[1,1].tick_params(labelsize=48)
 
-        axs[1,2].plot(y[0], z[0], '+', markersize=15, color=cmap.colors[0])
+        axs[1,2].plot(y[0], z[0], '+', markersize=8, color=cmap.colors[0])
         axs[1,2].scatter(y, z, c=z, s = 6,cmap='plasma', alpha=0.8)
-        axs[1,2].set_xlabel("Y", fontsize=36)
-        axs[1,2].set_ylabel("Z", fontsize=36)
-        axs[1,2].tick_params(labelsize=36)
+        axs[1,2].set_xlabel("Y", fontsize=48)
+        axs[1,2].set_ylabel("Z", fontsize=48)
+        axs[1,2].tick_params(labelsize=48)
 
         tight_layout()
         #plt.colorbar(sc)
@@ -257,41 +258,59 @@ def plot_lorenz_bif(dyn_sys, r, z_mins, z_maxes, n):
 
 
 
-def plot_lorenz_time_avg(dyn_sys, r, time_avg, n):
-    fig, ax = subplots(figsize=(36,12))
-    ax.scatter(r, time_avg, color="darkgreen", s=50, alpha=0.3)
 
-    ax.xaxis.set_tick_params(labelsize=24)
-    ax.yaxis.set_tick_params(labelsize=24)
-    xlim(0, r_range)
-    ylim(0, 200)
+def plot_3d_trajectory(dyn_sys, integration_time, model_name, time_step, init_state, device, comparison=False):
 
-    time_avg_path = '../plot/'+'time_avg_plot_new_'+str(n)+'.svg'
-    fig.savefig(time_avg_path, format='svg', dpi=400)
-    return
+    # call h(x) of dynamical system of interest
+    dyn_system, dim = define_dyn_sys(dyn_sys)
+    ti, tf = integration_time
 
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    pdf_path = '../plot/dist_'+str(model_name)+'_'+str(init_state.tolist())+'.pdf'
 
+    # simulate true trajectory
+    # true_data = simulate(dyn_system, ti, tf, init_state, time_step)
 
+    # Load the saved model
+    model = ODE_Lorenz().to(device)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+    # simulate node trajectory
+    node_data = simulate(model, ti, tf, init_state.to(device), time_step).detach().cpu()
 
-def plot_3d_trajectory(Y, pred_test, comparison=False):
+    # Plot 
     figure(figsize=(20, 15))
     ax = axes(projection='3d')
+
+    ax.xaxis.pane.fill = False
+    ax.yaxis.pane.fill = False
+    ax.zaxis.pane.fill = False
+
+
+    ax.xaxis.pane.set_edgecolor('w')
+    ax.yaxis.pane.set_edgecolor('w')
+    ax.zaxis.pane.set_edgecolor('w')
     ax.grid()
-    ax.plot3D(Y[:, 0], Y[:, 1], Y[:, 2], 'gray', linewidth=4)
+
+    # true_data = true_data.detach().cpu().numpy()
+    # ax.plot3D(true_data[:, 0], true_data[:, 1], true_data[:, 2], 'gray', linewidth=4)
+    path = '../plot/3d'+str(model_name)+ '.pdf'
 
     if comparison == True:
-        z = pred_test[:, 2]
-        ax.scatter3D(pred_test[:, 0], pred_test[:, 1], z, c=z, cmap='hsv', alpha=0.3, linewidth=0)
-        ax.set_title(f"Iteration {iter+1}")
+        z = node_data[:, 2]
+        ax.scatter3D(node_data[:, 0], node_data[:, 1], z, c=z, cmap='hsv', alpha=0.5, s=5, linewidth=4) #scatter3d
+        # ax.set_title(f"Iteration {iter+1}")
         ax.xaxis.set_tick_params(labelsize=24)
         ax.yaxis.set_tick_params(labelsize=24)
-        savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        ax.zaxis.set_tick_params(labelsize=24)
+        savefig(path, format='pdf', dpi=600, bbox_inches ='tight')
         close("all")
     else:
-        ax.set_title(f"Iteration {iter+1}")
-        ax.xaxis.set_tick_params(labelsize=24)
-        ax.yaxis.set_tick_params(labelsize=24)
-        savefig('expt_'+str(dyn_sys)+'/'+ optimizer_name + '/trajectory/' +str(iter+1)+'.png', format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+        # ax.set_title(f"Iteration {iter+1}")
+        ax.xaxis.set_tick_params(labelsize=36)
+        ax.yaxis.set_tick_params(labelsize=36)
+        savefig(path, format='pdf', dpi=600, bbox_inches ='tight')
         close("all")
 
     return
@@ -368,126 +387,6 @@ def LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01):
 
 
 
-def plot_time_space_lorenz(X, X_test, Y_test, pred_train, true_train, pred_test, loss_hist, optim_name, lr, num_epoch, time_step, periodic):
-    '''plot time_space for training/test data and training loss for lorenz system'''
-
-    pred_train = np.array(pred_train)
-    true_train = np.array(true_train)
-    pred_test = np.array(pred_test)
-    pred_train_last = pred_train[-1]
-    true_train_last = true_train[-1]
-
-    plt.figure(figsize=(40,10))
-
-    num_timestep = 5000
-    substance_type = 0
-    x = list(range(0,num_timestep))
-    x_loss = list(range(0,num_epoch))
-
-    plt.subplot(2,2,1)
-    plt.plot(pred_train_last[:num_timestep, substance_type], marker='+', linewidth=1)
-    plt.plot(true_train_last[:num_timestep, substance_type], alpha=0.7, linewidth=1)
-    plt.plot(X[:num_timestep, substance_type], '--', linewidth=1)
-    plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
-    plt.title('Substance type A prediction at {} epoch, Train'.format(num_epoch))
-
-    plt.subplot(2,2,2)
-    plt.plot(pred_test[:num_timestep, substance_type], marker='+', linewidth=1)
-    plt.plot(Y_test[:num_timestep, substance_type], linewidth=1)
-    plt.plot(X_test[:num_timestep, substance_type], '--', linewidth=1)
-    plt.legend(['y_pred @ t + {}'.format(1), 'y_true @ t + {}'.format(1), 'x @ t + {}'.format(0)])
-    plt.title('Substance type A prediction at {} epoch, Test'.format(num_epoch))
-
-    ##### Plot Training Loss #####
-    plt.subplot(2,2,3)
-    plt.plot(x_loss, loss_hist)
-    plt.title('Training Loss')
-    plt.xticks()
-    plt.yticks()
-    if periodic == True:
-        plt.savefig('expt_lorenz_periodic/' + optim_name + '/' + str(time_step) + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    else:
-        plt.savefig('expt_lorenz/' + optim_name + '/' + str(time_step) + '/' + 'Time Space, Training Loss, Test Loss with ' + 'lr=' + str(lr), format='png', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
-    plt.show()
-    plt.close("all")
-
-    return
-
-
-
-
-def corr_plot_rk4(args):
-
-    i, t, dt, tau, init = args
-
-    # ----- rk4 ----- #
-
-    # Generate traj(0 ~ 50+tau)
-    correlation = []
-    time = torch.arange(0, t+tau[i]+1, dt)
-    num_t = time.shape[0]
-    traj = torchdiffeq.odeint(lorenz, init, time, method='rk4', rtol=1e-8)
-
-    print(tau[i], "time:", time.shape)
-
-    #z(t+Tau)
-    z_tau = traj[(tau[i]+1)*int(1/dt):, 1]
-    #x(t)
-    x = traj[:t*int(1/dt), 0]
-    mean_xz = torch.inner(x,z_tau) / (x.shape[0])
-    mean_xz = mean_xz - torch.mean(x)*torch.mean(z_tau)
-    #print(i, "before abs:", mean_xz)
-    #mean_xz = torch.abs(mean_xz)
-    correlation.append(mean_xz)
-
-    return correlation
-
-
-
-def corr_plot_node(args):
-    # ----- node ----- #
-    device, model, i, t, dt, tau, init = args
-    node_correlation = []
-    time = torch.arange(0, t+tau[i]+1, dt).to(device)
-    t_eval_point = torch.linspace(0, dt, 2).to(device)
-    num_t = time.shape[0]
-
-    x = init.to(device)
-    temp = torchdiffeq.odeint(model, x, time, method='rk4', rtol=1e-8)
-
-    # Compute x*z
-    print("temp", temp.shape)
-    node_z = temp[(tau[i]+1)*int(1/dt):, 1]
-    node_x = temp[:t*int(1/dt), 0]
-
-    node_mean_xz = torch.inner(node_x,node_z) / (node_x.shape[0])
-    node_mean_xz = node_mean_xz - torch.mean(node_x)*torch.mean(node_z)
-    print(i, "before node abs:", node_mean_xz)
-    #node_mean_xz[node_mean_xz < 0] = 0.
-    #node_mean_xz = torch.abs(node_mean_xz)
-    node_correlation.append(node_mean_xz.detach().cpu())
-
-    return node_correlation
-
-
-
-def plot_correlation(dyn_sys, tau, val, node_val, t):
-    fig, ax = subplots(figsize=(36,12))
-    ax.semilogy(tau, val, color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=0.8)
-    ax.semilogy(tau, node_val, color="slateblue", marker='o', linewidth=4, alpha=0.8)
-
-    ax.grid(True)
-    ax.set_xlabel(r"$\tau$", fontsize=24)
-    ax.set_ylabel(r"$C_{x,z}(\tau)$", fontsize=24)
-    ax.tick_params(labelsize=24)
-    ax.legend(["rk4", "Neural ODE"], fontsize=24)
-
-    path = '../plot/'+'correlation_'+str(t)+'.svg'
-    fig.savefig(path, format='svg', dpi=400)
-    return
-
-
-
 def plot_loss(MSE_train, MSE_test, J_train, J_test):
     fig, axs = subplots(1, 2, figsize=(24, 8)) #, sharey=True
     fig.suptitle("Loss Behavior of Jacobian Loss Compared to MSE Loss", fontsize=24)
@@ -497,8 +396,8 @@ def plot_loss(MSE_train, MSE_test, J_train, J_test):
     # Training Loss
     x = np.arange(0, MSE_train.shape[0])
 
-    axs[0].plot(x[2000:], MSE_train[2000:], c=colors[15], label='Training Loss of MSE', alpha=0.9, linewidth=5)
-    axs[0].plot(x[2000:], J_train[2000:], c=colors[1], label='Training Loss of Jacobian Loss', alpha=0.9, linewidth=5)
+    axs[0].plot(x[:], MSE_train[:], c=colors[15], label='Training Loss of MSE', alpha=0.9, linewidth=5)
+    axs[0].plot(x[:], J_train[:], c=colors[1], label='Training Loss of Jacobian Loss', alpha=0.9, linewidth=5)
     axs[0].grid(True)
     axs[0].legend(loc='best', fontsize=20)
     axs[0].set_ylabel(r'$\mathcal{L}$', fontsize=24)
@@ -520,7 +419,7 @@ def plot_loss(MSE_train, MSE_test, J_train, J_test):
     return
 
 
-def plot_loss_MSE(MSE_train, MSE_test):
+def plot_loss_MSE(MSE_train, MSE_test, model_name):
     fig, axs = subplots(1, figsize=(24, 12)) #, sharey=True
     fig.suptitle("Loss Behavior of MSE Loss", fontsize=24)
     
@@ -532,13 +431,13 @@ def plot_loss_MSE(MSE_train, MSE_test):
     axs.plot(x[500:], MSE_train[500:], c=colors[15], label='Train Loss', alpha=0.9, linewidth=5)
     axs.plot(x[500:], MSE_test[500:], c=colors[1], label='Test Loss', alpha=0.9, linewidth=5)
     axs.grid(True)
-    axs.legend(loc='best', fontsize=20)
+    axs.legend(loc='best', fontsize=48)
     # axs.set_ylabel(r'$\mathcal{L}$', fontsize=24)
-    axs.set_xlabel('Epochs', fontsize=24)
-    axs.tick_params(labelsize=24)
+    axs.set_xlabel('Epochs', fontsize=48)
+    axs.tick_params(labelsize=48)
 
     tight_layout()
-    savefig('../plot/loss_behavior_MSE.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
+    savefig('../plot/loss_behavior'+str(model_name)+ '.pdf', format='pdf', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
 
     return
 
@@ -565,14 +464,14 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
 
     # plot
     fig, ax = subplots(1, figsize=(12, 6)) #, sharey=True
-    ax.hist(true_data[:, 0], alpha=0.5, color=(0.25, 0.25, 0.25))
-    ax.hist(node_data[:, 0], alpha=0.5, color="slateblue")
+    ax.hist(true_data[:, 0], bins=100, density=True, alpha=0.5, color=(0.25, 0.25, 0.25)) #density=True, 
+    ax.hist(node_data[:, 0], bins=100, density=True, alpha=0.5, color="slateblue") #density=True, 
 
     ax.grid(True)
     # ax.set_title(r"Disbribution of X", fontsize=24)
-    ax.legend(['rk4', 'NODE'], fontsize=24)
-    ax.xaxis.set_tick_params(labelsize=24)
-    ax.yaxis.set_tick_params(labelsize=24)
+    ax.legend(['rk4', 'NODE'], fontsize=36)
+    ax.xaxis.set_tick_params(labelsize=36)
+    ax.yaxis.set_tick_params(labelsize=36)
     tight_layout()
     savefig(pdf_path, format='pdf', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     return
@@ -582,23 +481,27 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
 
 
 if __name__ == '__main__':
-
-    '''# init_state = torch.tensor([1.,1.,-1.])
-    init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
-    plot_distribution("lorenz", [0, 500], "MSE_0", init_state, 0.01)'''
-
-    '''MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss.csv", delimiter=",", dtype=float)
-    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss.csv", delimiter=",", dtype=float)
-    #J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/training_loss_withJ.csv", delimiter=",", dtype=float)
-    #J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/test_loss_withJ.csv", delimiter=",", dtype=float)
     
-    plot_loss_MSE(MSE_train, MSE_test)
-    #plot_loss(MSE_train, MSE_test, J_train, J_test)'''
+    '''device = "cuda" if torch.cuda.is_available() else "cpu"
+    plot_3d_trajectory("lorenz", [0,200], "JAC_0", 0.01, torch.tensor([1.0, 1.0, -1.0]).to(device), device, comparison=True)'''
+    
+    # init_state = torch.tensor([1.,1.,-1.])
+    # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
+    # init_state = torch.tensor([1., 0., 0.])
+    # plot_distribution("lorenz", [0, 500], "JAC_300", init_state, 0.01)
+
+    MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
+    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
+    J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/training_loss.csv", delimiter=",", dtype=float)
+    J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/test_loss.csv", delimiter=",", dtype=float)
+    
+    # plot_loss_MSE(MSE_train, MSE_test, "MSE_0")
+    plot_loss(MSE_train, MSE_test, J_train, J_test)
 
 
     '''#----- test plot_3d_space() -----#
     time_step = 0.01
-    model = "MSE_300"
+    model = "MSE_0"
 
     # in attractor/ call training point: load csv file, 90*int(1/time_step)
     # traj = np.loadtxt("../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/whole_traj.csv', delimiter=",", dtype=float)
@@ -614,7 +517,7 @@ if __name__ == '__main__':
     pdf_path = '../plot/three_phase_plot_'+str(model)+'_'+str(init_state.tolist())+'.pdf'
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000, init_state, model_path, pdf_path)
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000, init_state, model_path, pdf_path)'''
 
     #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)'''
 
@@ -654,61 +557,3 @@ if __name__ == '__main__':
             ergodic_point.append([r_axis[i], z_maxes[i+10]])
     np.savetxt('../test_result/expt_lorenz/'+ "fixed_point.csv", np.asarray(fixed_point), delimiter=",")
     np.savetxt('../test_result/expt_lorenz/'+ "ergodic_point.csv", np.asarray(ergodic_point), delimiter=",")'''
-
-
-    # ----- correlation plot ----- #
-    
-    '''#1. initialize
-    t= 100
-    dt= 0.01
-    tf = 1000
-    tau = torch.arange(0, tf, 500)
-    init = torch.rand(3)
-    num_processes = 5
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    multiprocessing.set_start_method('spawn')
-    
-    #1-1. Load the saved model
-    model = ODE_Lorenz().to(device)
-    path = "../test_result/expt_lorenz/AdamW/"+str(dt)+'/'+'model_J_0.pt'
-    model.load_state_dict(torch.load(path))
-    model.eval()
-    print("Finished Loading model")
-
-    # 2. run parallel
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        res = pool.map(corr_plot_rk4, [(i, t, dt, tau, init) for i in range(len(tau))])
-        node_res = pool.map(corr_plot_node, [(device, model, i, t, dt, tau, init) for i in range(len(tau))]) #starmap
-
-        rk4_val = np.array(res)
-        node_val = np.array(node_res)
-
-    # 3. compute Fourier
-    rk4_fourier = scipy.fft.rfft(rk4_val)
-    node_fourier = scipy.fft.rfft(node_val)
-    normalize = rk4_val.shape[0] / 2
-    print(normalize)
-
-    freq_axis = scipy.fft.rfftfreq(rk4_val.shape[0], 1/0.01)
-        
-    # 4. plot correlation
-    print("initial point:", init)
-    print(rk4_val)
-    print(node_val)
-    len_tau = torch.linspace(0, tf, tau.shape[0])
-    plot_correlation("lorenz", len_tau, np.abs(rk4_val), np.abs(node_val), t)
-    
-    # 5. plot Fourier
-    fig, ax = subplots(figsize=(36,12))
-    ax.plot(np.abs(rk4_fourier/normalize), color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
-    ax.plot(np.abs(node_fourier/normalize), color="slateblue", marker='o', linewidth=4, alpha=1)
-
-    ax.grid(True)
-    #ax.set_xlabel(r"$Frequency$", fontsize=24)
-    ax.set_ylabel(r"$F(C_{x,z}(\tau))$", fontsize=24)
-    ax.tick_params(labelsize=24)
-    ax.legend(["rk4", "Neural ODE"], fontsize=24)
-
-    path = '../plot/'+'Fourier.png'
-    fig.savefig(path, format='png', dpi=400)'''
-
