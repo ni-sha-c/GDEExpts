@@ -2,10 +2,10 @@
   "time_step": 0.01,
   "lr": 0.0005,
   "weight_decay": 0.0005,
-  "num_epoch": 10000,
-  "integration_time": 200,
-  "num_train": 10000,
-  "num_test": 8000,
+  "num_epoch": 5000,
+  "integration_time": 110,
+  "num_train": 5000,
+  "num_test": 5000,
   "num_trans": 100,
   "iters": 50000,
   "minibatch": false,
@@ -14,4 +14,4 @@
   "reg_param": 1e-05,
   "optim_name": "AdamW",
   "dyn_sys": "lorenz"
-}{"train loss": 5.221023457124829e-06, "test loss": 6.0825189170549194e-05, "max of solution": [28.47521369245491, 28.602536308854383, 28.710948606726348], "max of weight": [1.633472927592058, 3.3240108662301244, 2.864373713721765, 0.5764748454093933, 0.058924440294504166, 0.04165817052125931], "multi step prediction error": 0, "train loss S'": 0.004914816003292799, "test loss S'": 0.006675387154649872, "max of solution S'": [28.510517726309853, 28.641658001170363, 28.752844210361765], "max of weight S'": [], "multi step prediction error S'": 0, "|loss S - loss S'|": 0.006614562124013901}
+}{"train loss": 7.226457819342613e-05, "test loss": 9.883960199239654e-05, "max of solution": [27.665106967493116, 27.6054496162248, 27.539786193329146], "max of weight": [2.8452919233800733, 2.483078867636896, 3.7475721845570185], "multi step prediction error": 0, "train loss S'": 0.019322097301483154, "test loss S'": 0.04948261362579117, "max of solution S'": [27.673551480526754, 27.607839975124328, 27.53677218876922], "max of weight S'": [0.5760329961776733, 0.05892442911863327, 0.04157806932926178], "multi step prediction error S'": 0, "|loss S - loss S'|": 0.049383774399757385}

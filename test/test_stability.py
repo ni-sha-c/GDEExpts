@@ -26,7 +26,7 @@ if __name__ == '__main__':
             return: Lyapunov Exponents of true system and model ''' 
 
     # Set device
-    torch.manual_seed(42)
+    # torch.manual_seed(42)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
@@ -43,10 +43,10 @@ if __name__ == '__main__':
     parser.add_argument("--time_step", type=float, default=1e-2)
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=5e-4)
-    parser.add_argument("--num_epoch", type=int, default=10000) # 10000
-    parser.add_argument("--integration_time", type=int, default=200) #100
-    parser.add_argument("--num_train", type=int, default=10000) #3000
-    parser.add_argument("--num_test", type=int, default=8000)#3000
+    parser.add_argument("--num_epoch", type=int, default=5000) # 10000
+    parser.add_argument("--integration_time", type=int, default=110) #100
+    parser.add_argument("--num_train", type=int, default=5000) #3000
+    parser.add_argument("--num_test", type=int, default=5000)#3000
     parser.add_argument("--num_trans", type=int, default=100) #10000
     parser.add_argument("--iters", type=int, default=5*(10**4))
     parser.add_argument("--minibatch", type=bool, default=False)
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     initial_points = []
 
 
-    for i in range(5):
+    for i in range(10):
         print("------------ round ", i, " ------------")
         
         with open("stability_"+str(args.loss_type)+"_"+str(i)+'.txt', 'w') as f:
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         for param_tensor in m_diff.state_dict():
             if "weight" in param_tensor:
                 weights_diff = m_diff.state_dict()[param_tensor].squeeze()
-                max_weight.append(torch.max(weights_diff).cpu().tolist())
+                max_weight_diff.append(torch.max(weights_diff).cpu().tolist())
 
         # Maximum solution
         pred_train = torch.tensor(np.array(pred_train))
@@ -201,14 +201,25 @@ if __name__ == '__main__':
             json.dump(entry, f)
 
     # Save abs loss
-    np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"loss_100_"+str(args.loss_type)+".csv", np.asarray(abs_loss_100), delimiter=",")
+    loss_filename = '../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"loss_100_"+str(args.loss_type)+".csv"
+
+    if os.path.exists(loss_filename):
+        print("Data appended to existing file.")
+        f_loss = open(loss_filename,'a')
+        np.savetxt(f_loss, np.asarray(abs_loss_100), delimiter=",")
+    else:
+        print("New file")
+        np.savetxt(loss_filename, np.asarray(abs_loss_100), delimiter=",")
+
     
     filename = '../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"loss_100_initial_points"+str(args.loss_type)+".csv"
 
     if os.path.exists(filename):
-        np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"loss_100_initial_points"+str(args.loss_type)+".csv", np.asarray(initial_points), delimiter=",", mode='a')
         print("Data appended to existing file.")
+        f = open(filename,'a')
+        np.savetxt(f, np.asarray(initial_points), delimiter=",")
     else:
-        np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"loss_100_initial_points"+str(args.loss_type)+".csv", np.asarray(initial_points), delimiter=",")
+        print("New file")
+        np.savetxt(filename, np.asarray(initial_points), delimiter=",")
 
     print("Mean of 100 loss", np.mean(abs_loss_100))
