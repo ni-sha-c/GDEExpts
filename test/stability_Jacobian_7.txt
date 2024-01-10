@@ -14,4 +14,4 @@
   "reg_param": 1e-05,
   "optim_name": "AdamW",
   "dyn_sys": "lorenz"
-}{"train loss": 0.0008147929563847784, "test loss": 1.29083724497726e-06, "train loss S'": 0.11169598169487072, "test loss S'": 0.060039798600940504, "|loss S - loss S'|": 0.06003850698471069, "train loss MSE": 1.5624549632775597e-05, "test loss MSE": 4.056980912048659e-05, "train loss S' MSE": 0.015802457928657532, "test loss S' MSE": 0.2924160234091491, "|loss S - loss S'| in MSE": 0.29237544536590576}
+}{"train loss": 0.001094226307357512, "test loss": 8.980759541525565e-06, "train loss S'": 0.15643967714394194, "test loss S'": 0.07110939060264831, "|loss S - loss S'|": 0.07110040634870529, "train loss MSE": 0.0002726251259446144, "test loss MSE": 0.0003063047288899482, "train loss S' MSE": 0.08379846811294556, "test loss S' MSE": 0.12136766784682126, "|loss S - loss S'| in MSE": 0.12106136232614517}
