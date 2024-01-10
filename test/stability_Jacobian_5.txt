@@ -2,7 +2,7 @@
   "time_step": 0.01,
   "lr": 0.0005,
   "weight_decay": 0.0005,
-  "num_epoch": 5000,
+  "num_epoch": 4000,
   "integration_time": 110,
   "num_train": 5000,
   "num_test": 5000,
@@ -14,4 +14,4 @@
   "reg_param": 1e-05,
   "optim_name": "AdamW",
   "dyn_sys": "lorenz"
-}
+}{"train loss": 0.002460388267124902, "test loss": 1.9935534880683454e-05, "train loss S'": 0.09999099499498025, "test loss S'": 0.061501224439057395, "|loss S - loss S'|": 0.0614812895655632, "train loss MSE": 0.00016298519039992243, "test loss MSE": 0.00011176904006241433, "train loss S' MSE": 0.020307034254074097, "test loss S' MSE": 0.27137882764791404, "|loss S - loss S'| in MSE": 0.2712670564651489}
