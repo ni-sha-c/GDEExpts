@@ -1,0 +1,32 @@
+Trial status: 25 TERMINATED
+Current time: 2024-01-09 18:47:58. Total running time: 1hr 9min 50s
+Logical resource usage: 32.0/64 CPUs, 2.0/2 GPUs (0.0/1.0 accelerator_type:A100)
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Trial name                          status         reg_param     trans_phase     iter     total time (s)       _metric │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ grid_search_jac_train_c2ec5_00000   TERMINATED        0.01               100        1            154.928   0.08292     │
+│ grid_search_jac_train_c2ec5_00001   TERMINATED        0.001              100        1            152.265   0.0124806   │
+│ grid_search_jac_train_c2ec5_00002   TERMINATED        0.0001             100        1            158.05    8.67681e-06 │
+│ grid_search_jac_train_c2ec5_00003   TERMINATED        1e-05              100        1            154.617   5.48239e-06 │
+│ grid_search_jac_train_c2ec5_00004   TERMINATED        1e-06              100        1            158.147   1.22141e-05 │
+│ grid_search_jac_train_c2ec5_00005   TERMINATED        0.01               200        1            152.437   0.114339    │
+│ grid_search_jac_train_c2ec5_00006   TERMINATED        0.001              200        1            156.382   0.0172119   │
+│ grid_search_jac_train_c2ec5_00007   TERMINATED        0.0001             200        1            152.493   8.87711e-06 │
+│ grid_search_jac_train_c2ec5_00008   TERMINATED        1e-05              200        1            156.587   7.56623e-06 │
+│ grid_search_jac_train_c2ec5_00009   TERMINATED        1e-06              200        1            159.738   1.35995e-05 │
+│ grid_search_jac_train_c2ec5_00010   TERMINATED        0.01               300        1            151.39    0.0974869   │
+│ grid_search_jac_train_c2ec5_00011   TERMINATED        0.001              300        1            157.561   0.0153463   │
+│ grid_search_jac_train_c2ec5_00012   TERMINATED        0.0001             300        1            155.693   1.18518e-05 │
+│ grid_search_jac_train_c2ec5_00013   TERMINATED        1e-05              300        1            155.312   1.14768e-05 │
+│ grid_search_jac_train_c2ec5_00014   TERMINATED        1e-06              300        1            158.42    1.07278e-05 │
+│ grid_search_jac_train_c2ec5_00015   TERMINATED        0.01               400        1            152.134   0.102819    │
+│ grid_search_jac_train_c2ec5_00016   TERMINATED        0.001              400        1            158.551   0.0133204   │
+│ grid_search_jac_train_c2ec5_00017   TERMINATED        0.0001             400        1            155.729   1.21663e-05 │
+│ grid_search_jac_train_c2ec5_00018   TERMINATED        1e-05              400        1            156.929   8.81842e-05 │
+│ grid_search_jac_train_c2ec5_00019   TERMINATED        1e-06              400        1            154.28    2.46058e-05 │
+│ grid_search_jac_train_c2ec5_00020   TERMINATED        0.01               500        1            156.977   0.114288    │
+│ grid_search_jac_train_c2ec5_00021   TERMINATED        0.001              500        1            156.411   0.0187138   │
+│ grid_search_jac_train_c2ec5_00022   TERMINATED        0.0001             500        1            158.91    1.0949e-05  │
+│ grid_search_jac_train_c2ec5_00023   TERMINATED        1e-05              500        1            151.921   1.23243e-05 │
+│ grid_search_jac_train_c2ec5_00024   TERMINATED        1e-06              500        1            153.961   9.10529e-06 │
+╰───────────────────────────────────────────

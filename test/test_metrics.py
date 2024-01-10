@@ -26,6 +26,7 @@ from src import NODE_solve as sol
     3. perturbed_multi_step_error()
     4. lyap_exps()
     5. test_jacobian()
+    6. test_stability()
     '''
 
 
@@ -350,6 +351,38 @@ def compute_wasserstein(device, int_time, init_state, time_step, model_name):
     dist_y = wasserstein_distance(node_data[:, 1], true_data[:, 1])
     dist_z = wasserstein_distance(node_data[:, 2], true_data[:, 2])
     print(dist_x, dist_y, dist_z)
+
+    return
+
+def test_stability(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys):
+    ''' 1. Generate 100 pair of (S, S') 
+        2. Train with S and S' and obtain optimal w_S, w_S'
+        3. On the test dataset, find Loss difference 
+        4. Repeat it for 100 pairs'''
+
+
+    x0 = x0.to(device).double()
+    print("initial point: ", x0)
+    t_eval_point = torch.linspace(0, time_step, 2).to(device)
+    dyn_sys_func, dim = dyn_sys_info
+
+    # jacobian_node
+    if method == "NODE":
+        # Load the model
+        model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        path = "../test_result/expt_"+dyn_sys+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
+        model.load_state_dict(torch.load(path))
+        model.eval()
+        #node_fixed_point = model(x0)
+        #print("fixed point for node?: ", node_fixed_point)
+        cur_J = torch.squeeze(F.jacobian(model, x0)).clone().detach()
+
+    # jacobian_rk4
+    else:
+        rk4 = lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method)
+        #print("fixed point?: ", rk4(x0)[1])
+        cur_J = F.jacobian(rk4, x0)[1]
+    
 
     return
 
