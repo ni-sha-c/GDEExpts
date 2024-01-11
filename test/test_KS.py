@@ -2,6 +2,27 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import sys
+sys.path.append('../examples')
+from KS import *
+from torch import *
+def test_KuramotoSivashinsky():
+    n = 20000
+    L = 128
+    c = 0.4
+    x = torch.linspace(0, L, n+1)
+    dx = L/(n+1)
+    u = sin(2*pi*x/L)
+    up = cos(2*pi*x/L)*2*pi/L
+    upup = -sin(2*pi*x/L)*(2*pi/L)**2
+    upupup = -cos(2*pi*x/L)*(2*pi/L)**3
+    upupupup = sin(2*pi*x/L)*(2*pi/L)**4
+    #ana_rhs_KS = -(u + c)*up - upup - upupupup
+    ana_rhs_KS = up
+    num_rhs_KS = rhs_KS(u, c, dx)
+    print(norm(ana_rhs_KS))
+    print(norm(num_rhs_KS))
+    assert np.allclose(ana_rhs_KS, num_rhs_KS, rtol=1e-5, atol=1e-5)
 
 def KS_Simulate():
     # Solution of Kuramoto-Sivashinsky equation

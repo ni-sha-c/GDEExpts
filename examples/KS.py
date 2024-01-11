@@ -1,5 +1,16 @@
 import torch
-
+from torch import *
+import torch.sparse as tosp
+def rhs_KS(u, c, dx):
+    n = u.shape[0]
+    B = tosp.spdiags(torch.vstack((ones(n), -ones(n)))/(2*dx), torch.tensor([1,-1]), (n, n))
+    
+    #A = -B*c
+    #A += tosp.spdiags(torch.vstack((-ones(n), 2*ones(n), -ones(n)))/dx/dx, torch.tensor([-1, 0, 1]), (n, n))
+    #A -= tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/dx/dx/dx/dx, torch.tensor([-2, -1, 0, 1, 2]), (n, n))
+    #return torch.matmul(A, u) - torch.matmul(B, u)*u
+    return torch.matmul(B, u)
+"""
 def KuramotoSivashinsky(u, c, dt, L):
     # From ... paper
 
@@ -84,18 +95,22 @@ def KuramotoSivashinsky(u, c, dt, L):
     dudt[n-1] = dudt[n-1] - second_last_4
 
     return dudt
-
+"""
 
 if __name__ == '__main__':
-    L = 128
+    u = torch.arange(3).float()
+    dx = 1.0
+    print(second_derivative(u, dx))
+    #L = 128
 
-    u = torch.randn(L).T # [L, 1]
-    print("u shape", u.shape)
-    print("u", u[:2])
-    u[0] = 0
-    u[-1] = 0
+    #u = torch.randn(L).T # [L, 1]
+    #print("u shape", u.shape)
+    #print("u", u[:2])
+    #u[0] = 0
+    #u[-1] = 0
 
-    c = 0.4
-    dt = 0.1
+    #c = 0.4
+    #dt = 0.1
 
-    KS = KuramotoSivashinsky(u, c, dt, L)
+    #KS = KuramotoSivashinsky(u, c, dt, L)
+    
