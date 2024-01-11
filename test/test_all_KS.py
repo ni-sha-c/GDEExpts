@@ -5,6 +5,7 @@ import sys
 import json
 import ray
 from ray import tune
+from test_KS import *
 
 sys.path.append('..')
 from src.NODE_solve import *
@@ -19,11 +20,7 @@ from examples.Tent_map import *
 
 if __name__ == '__main__':
 
-    ''' Minimum Working Example of Neural ODE
-            param:  dyn_system: function of dynamical system of interest
-                    dim: dimension of state 
-                    args: hyperparameters of model and dataset
-            return: Lyapunov Exponents of true system and model ''' 
+    # python test_all_KS.py --loss_type=MSE --dyn_sys=sin
 
     # Set device
     torch.manual_seed(42)
@@ -85,27 +82,26 @@ if __name__ == '__main__':
     real_time = args.iters * args.time_step
     print("real time: ", real_time)
 
-    # Generate Training/Test/Multi-Step Prediction Data
-    whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
-    training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
-    longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    tt, uu, x = KS_Simulate()
+    # print(tt.shape, uu.shape, x.shape) (101,) (101, 1024) (1024,)
 
-    dataset = create_data(training_traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
+    # Generate Training/Test/Multi-Step Prediction Data
+    whole_traj = uu.T[0]
+    print(whole_traj.shape)
+
+    dataset = create_data(whole_traj, n_train=50, n_test=20, n_nodes=dim, n_trans=0)
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
 
-
+    longer_traj = None
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
-
-    elif args.loss_type == "Auto_corr":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
         
     else:
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
 
 
     # Maximum weights

@@ -7,7 +7,7 @@ import torchdiffeq
 def solve_odefunc(odefunc, t, y0):
     ''' Solve odefunction using torchdiffeq.odeint() '''
 
-    solution = torchdiffeq.odeint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
+    solution = torchdiffeq.odeint_adjoint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
     final_state = solution[-1]
     return final_state
 
@@ -62,16 +62,17 @@ class ODE_Sin (nn.Module):
   def __init__( self , y_dim=2 , n_hidden=4) :
     super(ODE_Sin , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, n_hidden),
-      nn.Tanh(),
-      nn.Linear(n_hidden, n_hidden),
-      nn.Tanh(),
-      nn.Linear(n_hidden, y_dim)
+      nn.Linear(1, 32 * 9),
+      nn.GELU(),
+      nn.Linear(32 * 9, 64 * 9),
+      nn.GELU(),
+      nn.Linear(64 * 9, 1)
     )
 
   def forward(self , t, y): 
     # because of how odeint works, t is necessary here!
-    return self.net(y)
+    traj = torchdiffeq.odeint(self.net, y, torch.tensor([0, 0.01]), method='rk4', rtol=1e-8) 
+    return traj
 
 
 
