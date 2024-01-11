@@ -1,9 +1,10 @@
 import torch
 from torch import *
 import torch.sparse as tosp
-# add bc, test implicit and explicit
+# add boundary condition, test implicit and explicit
 # time integration imex
 # plot timeaverages of spatial average of u for different values of c.
+
 def rhs_KS_implicit(dx):
     n = u.shape[0]
     A = tosp.spdiags(torch.vstack((-ones(n), 2*ones(n), -ones(n)))/dx/dx, torch.tensor([-1, 0, 1]), (n, n))
@@ -30,6 +31,8 @@ def implicit_rk(u, c, dx, dt):
     Au = torch.matmul(A, u)
     k2 = linalg.solve(eye(n) - dt/3*A, Au)
     k3 = linalg.solve(eye(n) - dt/2*A, Au + dt/2*matmul(A, k2))
+    k4 = linalg.solve(eye(n) - dt/2*A, Au + dt/4*matmul(A, 3*k2-k3))
+    return dt * (3/4*k2 - 1/4*k3 + 1/2*k4)
 
 
 
