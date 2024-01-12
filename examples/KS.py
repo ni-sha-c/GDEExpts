@@ -10,23 +10,26 @@ def rhs_KS_implicit(u, dx):
     # u contains boundary nodes
     n = u.shape[0]
 
-    A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/dx/dx, torch.tensor([-1, 0, 1]), (n, n))
+    A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/(dx*dx), torch.tensor([-1, 0, 1]), (n, n))
+    # A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n))), torch.tensor([-1, 0, 1]), (n, n))
     A = A.to_dense()
-    A[0, :] = 0
-    A[-1, :] = 0
     print("A", A.to_dense())
 
-    B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/dx/dx/dx/dx, torch.tensor([-2, -1, 0, 1, 2]), (n, n))
+    B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/(dx*dx*dx*dx), torch.tensor([-2, -1, 0, 1, 2]), (n, n))
+    # B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n))), torch.tensor([-2, -1, 0, 1, 2]), (n, n))
     B = B.to_dense()
-    B[0, :] = 0
-    B[1, :] = 0
-    B[-2, :] = 0
-    B[-1, :] = 0
+    # B[0, :] = 0
+    # B[-1, :] = 0
     # Boundary Condition
-    B[1,1] += 1/dx/dx/dx/dx
-    B[-2,-2] += 1/dx/dx/dx/dx
-    print("A", B.to_dense())
+    # B[0,0] += 1
+    # B[-1,-1] += 1
 
+    B[0,0] += 1/dx/dx/dx/dx
+    B[-1,-1] += 1/dx/dx/dx/dx
+    print("B", B.to_dense())
+
+    B[0] = zeros(B[0].shape)
+    B[-1] = zeros(B[0].shape)
     A += B
 
     print("A", A.to_dense())

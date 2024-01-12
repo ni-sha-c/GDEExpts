@@ -16,14 +16,16 @@ def test_KuramotoSivashinsky():
           i = 0, n+1 are boundary nodes
           i = -1, n+2 are ghost nodes
     '''
+    # tensor(0.5040)
+    # tensor(0.5042)
     L = 128
     n = 511 # number of interior nodes= (L - 2)*10**n
     c = 0.4
-    x = torch.linspace(0, L, n+2) # 0 ... 128
-    dx = L/(n+2)
+    x = torch.linspace(0, L, n+2) # 0, 0.25, ... 128 # shape: [513]
+    x = x[1:-1] # shape: [511]
+    dx = L/(n+1) # 0.25
 
-    u = sin(2*pi*x/L)
-    u[0], u[-1] = 0, 0
+    u = sin(2*pi*x/L) # only the internal nodes
 
     up = cos(2*pi*x/L)*2*pi/L
     upup = -sin(2*pi*x/L)*(2*pi/L)**2
@@ -31,18 +33,19 @@ def test_KuramotoSivashinsky():
     upupupup = sin(2*pi*x/L)*(2*pi/L)**4
     # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
     # ana_rhs_KS = -(u+c)*up
-    ana_rhs_KS = -upup - upupupup
+    ana_rhs_KS = -(u+c)*up -upup - upupupup
 
     # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
-    num_rhs_KS = rhs_KS_implicit(u, dx)
+    num_rhs_KS = rhs_KS_implicit(u, dx) + rhs_KS_explicit(u, c, dx)
     # num_rhs_KS = rhs_KS_explicit(u, c, dx)
-
-    ana_rhs_KS[0], ana_rhs_KS[-1] = 0, 0 
-    print("answer", ana_rhs_KS)
-    print("predicted", num_rhs_KS)
+ 
+    print("answer", ana_rhs_KS[0:3], ana_rhs_KS[-3:])
+    print("predicted", num_rhs_KS[0:3], num_rhs_KS[-3:])
     print(norm(ana_rhs_KS))
     print(norm(num_rhs_KS))
     assert np.allclose(ana_rhs_KS, num_rhs_KS, rtol=1e-5, atol=1e-5)
+
+
 
 def KS_Simulate():
     # Solution of Kuramoto-Sivashinsky equation
@@ -106,59 +109,6 @@ def KS_Simulate():
 
     return tt, uu, x
 
-test_KuramotoSivashinsky()
+if __name__ == '__main__':
+    test_KuramotoSivashinsky()
 
-# def KS(u, l, T, N, h):
-#     s = len(u)
-
-#     v = np.fft.fft(u)
-
-#     k = (2 * np.pi / l) * np.concatenate((np.arange(0, s//2), [0], np.arange(-s//2 + 1, 0)))
-#     L = k**2 - k**4
-#     E = np.exp(h * L)
-#     E2 = np.exp(h * L / 2)
-#     M = 64
-#     r = np.exp(1j * np.pi * ((np.arange(1, M + 1) - 0.5) / M))
-#     LR = h * L[:, np.newaxis] + r[np.newaxis, :]
-#     Q = h * np.real(np.mean((np.exp(LR/2) - 1) / LR, axis=1))
-#     f1 = h * np.real(np.mean((-4 - LR + np.exp(LR) * (4 - 3 * LR + LR**2)) / LR**3, axis=1))
-#     f2 = h * np.real(np.mean((2 + LR + np.exp(LR) * (-2 + LR)) / LR**3, axis=1))
-#     f3 = h * np.real(np.mean((-4 - 3 * LR - LR**2 + np.exp(LR) * (4 - LR)) / LR**3, axis=1))
-
-#     uu = np.zeros((N, s))
-#     tt = np.zeros(N)
-#     nmax = round(T / h)
-#     nrec = int(np.floor(T / (N * h)))
-#     g = -0.5j * k
-#     q = 0
-
-#     for n in range(1, nmax + 1):
-#         t = n * h
-#         Nv = g * np.fft.fft(np.real(np.fft.ifft(v))**2)
-#         a = E2 * v + Q * Nv
-#         Na = g * np.fft.fft(np.real(np.fft.ifft(a))**2)
-#         b = E2 * v + Q * Na
-#         Nb = g * np.fft.fft(np.real(np.fft.ifft(b))**2)
-#         c = E2 * a + Q * (2 * Nb - Nv)
-#         Nc = g * np.fft.fft(np.real(np.fft.ifft(c))**2)
-#         v = E * v + Nv * f1 + 2 * (Na + Nb) * f2 + Nc * f3
-
-#         if n % nrec == 0:
-#             u = np.real(np.fft.ifft(v))
-#             uu[q, :] = u
-#             tt[q] = t
-#             q += 1
-
-#     return uu, tt
-
-
-# tt, uu, x = KS_Simulate()
-# print(uu)
-
-# plot
-# fig = plt.figure(figsize=(12, 12))
-# ax = fig.add_subplot(111, projection='3d')
-# tt, x = np.meshgrid(tt, x)
-# surf = ax.plot_surface(tt, x, uu.transpose(), cmap=cm.coolwarm, linewidth=0, antialiased=False)
-# fig.colorbar(surf, shrink=0.5, aspect=5)
-# plt.savefig("KS.png", format="png")
