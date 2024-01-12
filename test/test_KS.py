@@ -6,20 +6,40 @@ import sys
 sys.path.append('../examples')
 from KS import *
 from torch import *
+
 def test_KuramotoSivashinsky():
-    n = 20000
+    '''
+    state vector, u, has following index i
+
+    i = 0, 1, 2, ..., n, n+1
+    where i = 1, ..., n are internal nodes
+          i = 0, n+1 are boundary nodes
+          i = -1, n+2 are ghost nodes
+    '''
     L = 128
+    n = 511 # number of interior nodes= (L - 2)*10**n
     c = 0.4
-    x = torch.linspace(0, L, n+1)
-    dx = L/(n+1)
+    x = torch.linspace(0, L, n+2) # 0 ... 128
+    dx = L/(n+2)
+
     u = sin(2*pi*x/L)
+    u[0], u[-1] = 0, 0
+
     up = cos(2*pi*x/L)*2*pi/L
     upup = -sin(2*pi*x/L)*(2*pi/L)**2
     upupup = -cos(2*pi*x/L)*(2*pi/L)**3
     upupupup = sin(2*pi*x/L)*(2*pi/L)**4
-    #ana_rhs_KS = -(u + c)*up - upup - upupupup
-    ana_rhs_KS = up
-    num_rhs_KS = rhs_KS(u, c, dx)
+    # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
+    # ana_rhs_KS = -(u+c)*up
+    ana_rhs_KS = -upup - upupupup
+
+    # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
+    num_rhs_KS = rhs_KS_implicit(u, dx)
+    # num_rhs_KS = rhs_KS_explicit(u, c, dx)
+
+    ana_rhs_KS[0], ana_rhs_KS[-1] = 0, 0 
+    print("answer", ana_rhs_KS)
+    print("predicted", num_rhs_KS)
     print(norm(ana_rhs_KS))
     print(norm(num_rhs_KS))
     assert np.allclose(ana_rhs_KS, num_rhs_KS, rtol=1e-5, atol=1e-5)
@@ -86,6 +106,7 @@ def KS_Simulate():
 
     return tt, uu, x
 
+test_KuramotoSivashinsky()
 
 # def KS(u, l, T, N, h):
 #     s = len(u)

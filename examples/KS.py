@@ -1,22 +1,53 @@
 import torch
 from torch import *
 import torch.sparse as tosp
+
 # add boundary condition, test implicit and explicit
 # time integration imex
 # plot timeaverages of spatial average of u for different values of c.
 
-def rhs_KS_implicit(dx):
+def rhs_KS_implicit(u, dx):
+    # u contains boundary nodes
     n = u.shape[0]
-    A = tosp.spdiags(torch.vstack((-ones(n), 2*ones(n), -ones(n)))/dx/dx, torch.tensor([-1, 0, 1]), (n, n))
-    A -= tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/dx/dx/dx/dx, torch.tensor([-2, -1, 0, 1, 2]), (n, n))
-    return A 
+
+    A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/dx/dx, torch.tensor([-1, 0, 1]), (n, n))
+    A = A.to_dense()
+    A[0, :] = 0
+    A[-1, :] = 0
+    print("A", A.to_dense())
+
+    B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/dx/dx/dx/dx, torch.tensor([-2, -1, 0, 1, 2]), (n, n))
+    B = B.to_dense()
+    B[0, :] = 0
+    B[1, :] = 0
+    B[-2, :] = 0
+    B[-1, :] = 0
+    # Boundary Condition
+    B[1,1] += 1/dx/dx/dx/dx
+    B[-2,-2] += 1/dx/dx/dx/dx
+    print("A", B.to_dense())
+
+    A += B
+
+    print("A", A.to_dense())
+
+    implicit_dudt = -torch.matmul(A, u)
+
+    return implicit_dudt
 
 def rhs_KS_explicit(u, c, dx):
+    # u contains boundary nodes
     n = u.shape[0]
+
     B = tosp.spdiags(torch.vstack((ones(n), -ones(n)))/(2*dx), torch.tensor([1,-1]), (n, n))
-    
-    A = -B*c
-    return torch.matmul(A, u) - torch.matmul(B, u)*u
+    B = B.to_dense()
+    B[0, :] = 0
+    B[-1, :] = 0
+    B[:, 0] = 0
+    B[:, -1] = 0
+    # print("B", B)
+
+    return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
 
 def explicit_rk(u, c, dx, dt):
     k1 = rhs_KS_explicit(u, c, dx)
@@ -32,7 +63,7 @@ def implicit_rk(u, c, dx, dt):
     k2 = linalg.solve(eye(n) - dt/3*A, Au)
     k3 = linalg.solve(eye(n) - dt/2*A, Au + dt/2*matmul(A, k2))
     k4 = linalg.solve(eye(n) - dt/2*A, Au + dt/4*matmul(A, 3*k2-k3))
-    return dt * (3/4*k2 - 1/4*k3 + 1/2*k4)
+    return dt * (3/4*k2 - 1/4*k3 + 1/2*k4) # should this be u + dt * ... ?
 
 
 
@@ -124,9 +155,11 @@ def KuramotoSivashinsky(u, c, dt, L):
 """
 
 if __name__ == '__main__':
-    u = torch.arange(3).float()
-    dx = 1.0
-    print(second_derivative(u, dx))
+    u = torch.arange(10).float()
+    dx = 1.
+    c = 1
+    A = rhs_KS_explicit(u, c, dx)
+    # print(second_derivative(u, dx))
     #L = 128
 
     #u = torch.randn(L).T # [L, 1]
