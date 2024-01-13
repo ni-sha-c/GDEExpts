@@ -11,32 +11,30 @@ def rhs_KS_implicit(u, dx):
     n = u.shape[0]
 
     A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/(dx*dx), torch.tensor([-1, 0, 1]), (n, n))
-    # A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n))), torch.tensor([-1, 0, 1]), (n, n))
     A = A.to_dense()
-    print("A", A.to_dense())
+    # print("A", A.to_dense())
 
     B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/(dx*dx*dx*dx), torch.tensor([-2, -1, 0, 1, 2]), (n, n))
-    # B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n))), torch.tensor([-2, -1, 0, 1, 2]), (n, n))
     B = B.to_dense()
     # B[0, :] = 0
     # B[-1, :] = 0
     # Boundary Condition
-    # B[0,0] += 1
-    # B[-1,-1] += 1
-
-    B[0,0] += 1/dx/dx/dx/dx
-    B[-1,-1] += 1/dx/dx/dx/dx
+    B[0,0] += 1/(dx*dx*dx*dx)
+    B[-1,-1] += 1/(dx*dx*dx*dx)
     print("B", B.to_dense())
+    print(B.to_dense()[0])
+    print(B.to_dense()[-1])
 
     B[0] = zeros(B[0].shape)
     B[-1] = zeros(B[0].shape)
     A += B
 
-    print("A", A.to_dense())
+    # print("A", A.to_dense())
 
     implicit_dudt = -torch.matmul(A, u)
 
-    return implicit_dudt
+    # return implicit_dudt
+    return A
 
 def rhs_KS_explicit(u, c, dx):
     # u contains boundary nodes
@@ -46,8 +44,6 @@ def rhs_KS_explicit(u, c, dx):
     B = B.to_dense()
     B[0, :] = 0
     B[-1, :] = 0
-    B[:, 0] = 0
-    B[:, -1] = 0
     # print("B", B)
 
     return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
@@ -57,16 +53,16 @@ def explicit_rk(u, c, dx, dt):
     k2 = rhs_KS_explicit(u + dt/3*k1, c, dx)
     k3 = rhs_KS_explicit(u + dt*k2, c, dx)
     k4 = rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx)
-    return u + dt*(3/4*k2 - 1/4*k3 + 1/2*k4)
+    return dt*(3/4*k2 - 1/4*k3 + 1/2*k4)
 
 def implicit_rk(u, c, dx, dt):
     n = u.shape[0]
-    A = rhs_KS_implicit(dx)
+    A = rhs_KS_implicit(u, dx)
     Au = torch.matmul(A, u)
-    k2 = linalg.solve(eye(n) - dt/3*A, Au)
-    k3 = linalg.solve(eye(n) - dt/2*A, Au + dt/2*matmul(A, k2))
-    k4 = linalg.solve(eye(n) - dt/2*A, Au + dt/4*matmul(A, 3*k2-k3))
-    return dt * (3/4*k2 - 1/4*k3 + 1/2*k4) # should this be u + dt * ... ?
+    k2 = torch.linalg.solve(eye(n) - dt/3*A, Au)
+    k3 = torch.linalg.solve(eye(n) - dt/2*A, Au + dt/2*matmul(A, k2))
+    k4 = torch.linalg.solve(eye(n) - dt/2*A, Au + dt/4*matmul(A, 3*k2-k3))
+    return dt * (3/4*k2 - 1/4*k3 + 1/2*k4)
 
 
 

@@ -19,13 +19,14 @@ def test_KuramotoSivashinsky():
     # tensor(0.5040)
     # tensor(0.5042)
     L = 128
-    n = 511 # number of interior nodes= (L - 2)*10**n
+    n = 127 #511 # number of interior nodes
     c = 0.4
     x = torch.linspace(0, L, n+2) # 0, 0.25, ... 128 # shape: [513]
     x = x[1:-1] # shape: [511]
     dx = L/(n+1) # 0.25
 
     u = sin(2*pi*x/L) # only the internal nodes
+    print("u", u)
 
     up = cos(2*pi*x/L)*2*pi/L
     upup = -sin(2*pi*x/L)*(2*pi/L)**2
@@ -39,11 +40,13 @@ def test_KuramotoSivashinsky():
     num_rhs_KS = rhs_KS_implicit(u, dx) + rhs_KS_explicit(u, c, dx)
     # num_rhs_KS = rhs_KS_explicit(u, c, dx)
  
-    print("answer", ana_rhs_KS[0:3], ana_rhs_KS[-3:])
-    print("predicted", num_rhs_KS[0:3], num_rhs_KS[-3:])
+    print("answer", ana_rhs_KS[0:5], ana_rhs_KS[-5:])
+    print("predicted", num_rhs_KS[0:5], num_rhs_KS[-5:])
     print(norm(ana_rhs_KS))
     print(norm(num_rhs_KS))
     assert np.allclose(ana_rhs_KS, num_rhs_KS, rtol=1e-5, atol=1e-5)
+    
+    return
 
 
 
@@ -111,4 +114,32 @@ def KS_Simulate():
 
 if __name__ == '__main__':
     test_KuramotoSivashinsky()
+
+    '''L = 128
+    n = 511 # number of interior nodes
+    c = 0.
+    x = torch.linspace(0, L, n+2) # 0, 0.25, ... 128 # shape: [513]
+    x = x[1:-1] # shape: [511]
+    dx = L/(n+1) # 0.25
+    dt = 0.1
+    T = torch.arange(0, 300, dt)
+
+    u = sin(2*pi*x/L) # only the internal nodes
+    # u_next_exp = explicit_rk(u, c, dx, dt)
+    # u_next_imp = implicit_rk(u, c, dx, dt)
+    # u_next = u_next_exp + u_next_imp
+    u_bar = []
+    
+
+
+    for i in T:
+        print(i, u)
+        u_next_exp = explicit_rk(u, c, dx, dt)
+        u_next_imp = implicit_rk(u, c, dx, dt)
+        u_next = u + u_next_exp + u_next_imp
+        u = u_next
+        u_bar.append(torch.mean(u_next))
+
+    print(u_bar)'''
+
 
