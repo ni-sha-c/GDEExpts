@@ -17,8 +17,8 @@ def test_KuramotoSivashinsky():
           i = -1, n+2 are ghost nodes
     '''
 
-    L = 128
-    n = 127 #511 # number of interior nodes
+    L = 128 # signal from [0, L]
+    n = 127 # 511 # n = number of interior nodes
     dx = L/(n+1) # 0.25
     c = 0.4
     x = torch.arange(0, L+dx, dx) # 0, 0 + dx, ... 128 # shape: L + 1
@@ -34,18 +34,19 @@ def test_KuramotoSivashinsky():
     upupup = -cos(2*pi*x/L)*(2*pi/L)**3
     upupupup = sin(2*pi*x/L)*(2*pi/L)**4
     # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
-    # ana_rhs_KS = -(u+c)*up
-    ana_rhs_KS = -u*up
+    ana_rhs_KS = -upup -upupupup
+    # ana_rhs_KS = -c*up
 
     # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
-    # num_rhs_KS = rhs_KS_implicit(u, dx) + rhs_KS_explicit(u, c, dx)
-    num_rhs_KS = rhs_KS_explicit(u, c, dx)
+    num_rhs_KS = rhs_KS_implicit(u, dx)
+    # num_rhs_KS = rhs_KS_explicit(u, c,dx) + rhs_KS_explicit_linear(u, c, dx)
  
+    # Testing for inner nodes
     print("answer", ana_rhs_KS[0:5], ana_rhs_KS[-5:])
     print("predicted", num_rhs_KS[0:5], num_rhs_KS[-5:])
-    print(norm(ana_rhs_KS))
-    print(norm(num_rhs_KS))
-    assert np.allclose(ana_rhs_KS, num_rhs_KS, rtol=1e-5, atol=1e-5)
+    print(norm(ana_rhs_KS[1:-1]))
+    print(norm(num_rhs_KS[1:-1]))
+    assert np.allclose(ana_rhs_KS[1:-1], num_rhs_KS[1:-1], rtol=1e-5, atol=1e-5)
     
     return
 
@@ -119,11 +120,10 @@ if __name__ == '__main__':
     '''L = 128
     n = 511 # number of interior nodes
     c = 0.
-    x = torch.linspace(0, L, n+2) # 0, 0.25, ... 128 # shape: [513]
-    x = x[1:-1] # shape: [511]
     dx = L/(n+1) # 0.25
+    x = torch.arange(0, L+dx, dx) # 0, 0 + dx, ... 128 # shape: L + 1
     dt = 0.1
-    T = torch.arange(0, 300, dt)
+    T = torch.arange(0, dt*5, dt) # 300
 
     u = sin(2*pi*x/L) # only the internal nodes
     # u_next_exp = explicit_rk(u, c, dx, dt)

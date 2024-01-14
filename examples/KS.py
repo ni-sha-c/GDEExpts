@@ -12,29 +12,36 @@ def rhs_KS_implicit(u, dx):
 
     A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/(dx*dx), torch.tensor([-1, 0, 1]), (n, n))
     A = A.to_dense()
-    # print("A", A.to_dense())
 
-    B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/(dx*dx*dx*dx), torch.tensor([-2, -1, 0, 1, 2]), (n, n))
+
+    B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/(dx*dx*dx*dx), torch.tensor([-2, -1, 0, 1, 2]), (n-2, n-2))
     B = B.to_dense()
-    # B[0, :] = 0
-    # B[-1, :] = 0
-    # Boundary Condition
-    B[0,0] += 1/(dx*dx*dx*dx)
-    B[-1,-1] += 1/(dx*dx*dx*dx)
-    print("B", B.to_dense())
-    print(B.to_dense()[0])
-    print(B.to_dense()[-1])
 
-    B[0] = zeros(B[0].shape)
-    B[-1] = zeros(B[0].shape)
-    A += B
+    # Perform the pad 
+    C = torch.zeros(n, n)
+    C[1:n-1, 1:n-1] = B
 
-    # print("A", A.to_dense())
+    # Boundary Condition (i = 2, 3, ... , n-1)
+    C[1, :] = 0
+    C[-2, :] = 0
+    C[1, 1] = 7/(dx*dx*dx*dx)
+    C[1, 2] = -4/(dx*dx*dx*dx)
+    C[1, 3] = 1/(dx*dx*dx*dx)
+    C[-2, -2] = 7/(dx*dx*dx*dx)
+    C[-2, -3] = -4/(dx*dx*dx*dx)
+    C[-2, -4] = 1/(dx*dx*dx*dx)
+
+    print("C after addition", C)
+
+    A += C
 
     implicit_dudt = -torch.matmul(A, u)
+    implicit_dudt[0] = 0.
+    implicit_dudt[-1] = 0.
 
     return implicit_dudt
     # return A
+
 
 def rhs_KS_explicit(u, c, dx):
     # u contains boundary nodes
@@ -53,6 +60,20 @@ def rhs_KS_explicit(u, c, dx):
     # return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
     return exp_term
 
+def rhs_KS_explicit_linear(u, c, dx):
+    # u contains boundary nodes
+    n = u.shape[0]
+    print("n", n)
+
+    B = tosp.spdiags(torch.vstack((ones(n), -ones(n)))/(2*dx), torch.tensor([1,-1]), (n, n))
+    B = B.to_dense()
+    # du_0/dx = 0, du_n/dx = 0
+    print("B", B)
+
+    exp_term = - torch.matmul(B*c, u)
+ 
+    return exp_term
+
 def explicit_rk(u, c, dx, dt):
     k1 = rhs_KS_explicit(u, c, dx)
     k2 = rhs_KS_explicit(u + dt/3*k1, c, dx)
@@ -62,8 +83,8 @@ def explicit_rk(u, c, dx, dt):
 
 def implicit_rk(u, c, dx, dt):
     n = u.shape[0]
-    A = rhs_KS_implicit(u, dx)
-    Au = torch.matmul(A, u)
+    Au = rhs_KS_implicit(u, dx)
+    # Au = torch.matmul(A, u)
     k2 = torch.linalg.solve(eye(n) - dt/3*A, Au)
     k3 = torch.linalg.solve(eye(n) - dt/2*A, Au + dt/2*matmul(A, k2))
     k4 = torch.linalg.solve(eye(n) - dt/2*A, Au + dt/4*matmul(A, 3*k2-k3))
