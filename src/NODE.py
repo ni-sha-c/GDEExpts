@@ -7,7 +7,8 @@ import torchdiffeq
 def solve_odefunc(odefunc, t, y0):
     ''' Solve odefunction using torchdiffeq.odeint() '''
 
-    solution = torchdiffeq.odeint_adjoint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
+    # solution = torchdiffeq.odeint_adjoint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
+    solution = torchdiffeq.odeint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
     final_state = solution[-1]
     return final_state
 
@@ -95,18 +96,31 @@ class ODE_Tent (nn.Module):
   def forward(self , t, y): 
     return self.net(y)
 
+class ODE_Coupled_Brusselator (nn.Module):
+  
+  def __init__( self , y_dim=2 , n_hidden=4) :
+    super(ODE_Coupled_Brusselator , self ).__init__()
+    self.net = nn.Sequential(
+      nn.Linear(y_dim, 32 * 16),
+      nn.GELU(),
+      nn.Linear(32 * 16 , 64 * 16),
+      nn.GELU(),
+      nn.Linear(64 * 16, y_dim)
+    )
 
+  def forward(self , t, y): 
+    return self.net(y)
 
 class ODE_Brusselator (nn.Module):
   
   def __init__( self , y_dim=2 , n_hidden=4) :
     super(ODE_Brusselator , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, 40*9),
-      nn.GELU(),
-      nn.Linear(40*9, 40*9),
-      nn.GELU(),
-      nn.Linear(40*9, y_dim)
+      nn.Linear(y_dim, 32 * 16),
+      nn.SiLU(),
+      nn.Linear(32 * 16 , 64 * 16),
+      nn.SiLU(),
+      nn.Linear(64 * 16, y_dim)
 
       # nn.Linear(y_dim, 64),
       # nn.Tanh(),

@@ -16,16 +16,17 @@ def test_KuramotoSivashinsky():
           i = 0, n+1 are boundary nodes
           i = -1, n+2 are ghost nodes
     '''
-    # tensor(0.5040)
-    # tensor(0.5042)
+
     L = 128
     n = 127 #511 # number of interior nodes
-    c = 0.4
-    x = torch.linspace(0, L, n+2) # 0, 0.25, ... 128 # shape: [513]
-    x = x[1:-1] # shape: [511]
     dx = L/(n+1) # 0.25
+    c = 0.4
+    x = torch.arange(0, L+dx, dx) # 0, 0 + dx, ... 128 # shape: L + 1
+    print(x[0:3], x[-1], x.shape)
+    # x = x[1:-1]
 
-    u = sin(2*pi*x/L) # only the internal nodes
+    u = sin(2*pi*x/L)
+    u[0], u[-1] = 0, 0 # u_0, u_n = 0, 0
     print("u", u)
 
     up = cos(2*pi*x/L)*2*pi/L
@@ -34,11 +35,11 @@ def test_KuramotoSivashinsky():
     upupupup = sin(2*pi*x/L)*(2*pi/L)**4
     # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
     # ana_rhs_KS = -(u+c)*up
-    ana_rhs_KS = -(u+c)*up -upup - upupupup
+    ana_rhs_KS = -u*up
 
     # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
-    num_rhs_KS = rhs_KS_implicit(u, dx) + rhs_KS_explicit(u, c, dx)
-    # num_rhs_KS = rhs_KS_explicit(u, c, dx)
+    # num_rhs_KS = rhs_KS_implicit(u, dx) + rhs_KS_explicit(u, c, dx)
+    num_rhs_KS = rhs_KS_explicit(u, c, dx)
  
     print("answer", ana_rhs_KS[0:5], ana_rhs_KS[-5:])
     print("predicted", num_rhs_KS[0:5], num_rhs_KS[-5:])

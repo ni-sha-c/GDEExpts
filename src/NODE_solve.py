@@ -18,6 +18,7 @@ from examples.Lorenz_periodic import *
 from examples.Lorenz import *
 from examples.Sin import *
 from examples.Tent_map import *
+from examples.Coupled_Brusselator import *
 
 
 def simulate(dyn_system, ti, tf, init_state, time_step):
@@ -93,7 +94,8 @@ def define_dyn_sys(dyn_sys):
                   'tent_map' : [tent_map, 1],
                   'brusselator' : [brusselator, 2],
                   'lorenz_periodic' : [lorenz_periodic, 3],
-                  'lorenz' : [lorenz, 3]}
+                  'lorenz' : [lorenz, 3],
+                  'coupled_brusselator': [coupled_brusselator, 4]}
     dyn_sys_info = DYNSYS_MAP[dyn_sys]
     dyn_sys_func, dim = dyn_sys_info
 
@@ -109,7 +111,8 @@ def create_NODE(device, dyn_sys, n_nodes, n_hidden, T):
                   'tent_map' : ODE_Tent,
                   'brusselator' : ODE_Brusselator,
                   'lorenz_periodic' : ODE_Lorenz_periodic,
-                  'lorenz' : ODE_Lorenz}
+                  'lorenz' : ODE_Lorenz,
+                  'coupled_brusselator': ODE_Coupled_Brusselator}
     ODEFunc = DYNSYS_NN_MAP[dyn_sys]
     neural_func = ODEFunc(y_dim=n_nodes, n_hidden=n_hidden).to(device)
     # node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
@@ -223,10 +226,28 @@ def single_jacobian(args):
 
 
 def Jacobian_Matrix(input, sigma, r, b):
-    '''Compute Jacobian Matrix'''
+    ''' Jacobian Matrix of Lorenz '''
 
     x, y, z = input
     return torch.stack([torch.tensor([-sigma, sigma, 0]), torch.tensor([r - z, -1, -x]), torch.tensor([y, x, -b])])
+
+
+
+def Jacobian_Brusselator(dyn_sys_f, x):
+    ''' Jacobian Matrix of Coupled Brusselator '''
+    a = 2.0
+    b = 6.375300171526684
+    lambda_1 = 1.2
+    lambda_2 = 80.0
+    x1, y1, x2, y2 = x
+
+    matrix = torch.stack([
+    torch.tensor([-(b+1) + 2*x1*y1 -lambda_1, x1**2, lambda_1, 0]), 
+    torch.tensor([b-2*x1*y1, - x1**2 - lambda_2, 0, lambda_2]), 
+    torch.tensor([lambda_1, 0, -(b+1) + 2*x2*y2 -lambda_1, x2**2]), 
+    torch.tensor([0, lambda_2, b - 2*x2*y2, -x2**2 - lambda_2])])
+
+    return matrix
 
 
 # ------------- #
@@ -313,7 +334,7 @@ def ac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epo
 
 
 
-def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, rho, reg_param, multi_step = False,minibatch=False, batch_size=0):
+def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, rho, reg_param, multi_step = False,minibatch=False, batch_size=0):
 
     # Initialize
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
@@ -321,13 +342,21 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
     X, Y, X_test, Y_test = dataset
     X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
     num_train = X.shape[0]
+
+    # dyn_sys_info = [dyn_sys_func, dim]
+    dyn_sys, dyn_sys_name, dim = dyn_sys_info
     
     # Compute True Jacobian
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
 
-    True_J = torch.ones(num_train, 3, 3).to(device)
-    for i in range(num_train):
-        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=rho, b=8/3)
+    True_J = torch.ones(num_train, dim, dim).to(device)
+    if dyn_sys_name == "lorenz":
+        for i in range(num_train):
+            True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=rho, b=8/3)
+    elif dyn_sys_name == "coupled_brusselator":
+        print("Computing Jacobian of Brusselator!!")
+        for i in range(num_train):
+            True_J[i] = Jacobian_Brusselator(dyn_sys, X[i, :])
     print(True_J.shape)
     print("Finished Computing True Jacobian")
 
@@ -391,7 +420,7 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
         ##### test multi_step #####
         if (i+1) == epochs and (multi_step == True):
-            error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+            error = test_multistep(dyn_sys, dyn_sys_name, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
         else:
             error = torch.tensor(0.)
 
@@ -399,7 +428,7 @@ def jac_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
 
 
-def MSE_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, multi_step = False, minibatch=False, batch_size=0):
+def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, multi_step = False, minibatch=False, batch_size=0):
 
     # Initialize
     pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
@@ -407,6 +436,9 @@ def MSE_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
     X, Y, X_test, Y_test = dataset
     X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
+
+    # dyn_sys_info = [dyn_sys_func, dim]
+    dyn_sys, dyn_sys_name, dim = dyn_sys_info
 
     for i in range(epochs): # looping over epochs
         model.train()
@@ -463,7 +495,7 @@ def MSE_train(dyn_sys, model, device, dataset, true_t, optim_name, criterion, ep
 
         ##### test multi_step #####
         if (i+1) == epochs and (multi_step == True):
-            error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+            error = test_multistep(dyn_sys, dyn_sys_name, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
         else:
             error = torch.tensor(0)
 
@@ -582,7 +614,7 @@ def evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, iter,
 
 
 
-def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time, tran_state):
+def test_multistep(dyn_sys, dyn_sys_name, model, epochs, true_traj, device, iter, optimizer_name, lr, time_step, integration_time, tran_state):
 
   print("true_traj", true_traj.shape)
   print("integration_time", integration_time)
@@ -614,10 +646,10 @@ def test_multistep(dyn_sys, model, epochs, true_traj, device, iter, optimizer_na
     true_traj_csv = np.asarray(true_traj.detach().cpu())
 
     # plot traj
-    plot_multi_step_traj_3D(dyn_sys, time_step, optimizer_name, test_t, pred_traj, true_traj)
+    # plot_multi_step_traj_3D(dyn_sys_name, time_step, optimizer_name, test_t, pred_traj, true_traj)
 
     # Plot Error ||pred - true||
-    error = multi_step_pred_error_plot(dyn_sys, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
+    error = multi_step_pred_error_plot(dyn_sys, dyn_sys_name, device, epochs, pred_traj, true_traj, optimizer_name, lr, time_step, integration_time, tran_state)
 
   return error
 
@@ -652,7 +684,7 @@ def plot_multi_step_traj_3D(dyn_sys, time_step, optim_n, test_t, pred_traj, true
 
 
 
-def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time, tran_state):
+def multi_step_pred_error_plot(dyn_sys, dyn_sys_name, device, num_epoch, pred_traj, Y, optimizer_name, lr, time_step, integration_time, tran_state):
     ''' func: plot error vs real time
         args:   pred_traj = pred_traj by Neural ODE (csv file)
                 Y = true_traj (csv file) '''
@@ -677,7 +709,7 @@ def multi_step_pred_error_plot(dyn_sys, device, num_epoch, pred_traj, Y, optimiz
     ax.legend(['x component', 'approx slope'], fontsize=20)
     ax.tick_params(labelsize=24)
     tight_layout()
-    fig.savefig('../test_result/expt_'+str(dyn_sys)+"/"+str(optimizer_name)+"/"+str(time_step)+"/"+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
+    fig.savefig('../test_result/expt_'+str(dyn_sys_name)+"/"+str(optimizer_name)+"/"+str(time_step)+"/"+'error_plot_' + str(time_step) +'.svg', format='svg', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
 
     print("multi step pred error: ", error_x[-1])
 

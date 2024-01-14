@@ -15,6 +15,7 @@ from examples.Lorenz_fixed import *
 from examples.Lorenz_periodic import *
 from examples.Sin import *
 from examples.Tent_map import *
+from examples.Coupled_Brusselator import *
 
 
 if __name__ == '__main__':
@@ -37,7 +38,8 @@ if __name__ == '__main__':
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
                   'lorenz_periodic' : [lorenz_periodic, 3],
-                  'lorenz' : [lorenz, 3]}
+                  'lorenz' : [lorenz, 3],
+                  'coupled_brusselator': [coupled_brusselator, 4]}
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--time_step", type=float, default=1e-2)
@@ -58,7 +60,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     dyn_sys_func, dim = define_dyn_sys(args.dyn_sys)
-    dyn_sys_info = [dyn_sys_func, dim]
+    dyn_sys_info = [dyn_sys_func, args.dyn_sys, dim]
+
     if args.dyn_sys == "lorenz":
         rho = 28.0
     elif args.dyn_sys == "lorenz_periodic":
@@ -76,8 +79,14 @@ if __name__ == '__main__':
         json.dump(args_dict, f, indent=2)
 
     # Assign Initial Point of Orbit
-    x0 = torch.randn(dim)
-    x_multi_0 = torch.randn(dim)
+    if args.dyn_sys == "coupled_brusselator":
+        # x0 = torch.tensor([1.9, 3.0, 2.1, 2.9])
+        # x_multi_0 = torch.tensor([1.9, 3.0, 2.1, 2.9])
+        x0 = torch.randn(dim)
+        x_multi_0 = torch.randn(dim)
+    else:
+        x0 = torch.randn(dim)
+        x_multi_0 = torch.randn(dim)
     print("initial point:", x_multi_0)
 
     # Initialize Model and Dataset Parameters
@@ -99,13 +108,13 @@ if __name__ == '__main__':
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
 
     elif args.loss_type == "Auto_corr":
         pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
         
     else:
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
 
 
     # Maximum weights
@@ -149,17 +158,17 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
-    print("NODE LE: ", LE_NODE)
+    # LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+    # print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||
-    norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
-    print("Norm Difference: ", norm_difference)
+    # norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
+    # print("Norm Difference: ", norm_difference)
 
-    with open(str(timestamp)+'.txt', 'a') as f:
-        entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
-        json.dump(entry, f)
+    # with open(str(timestamp)+'.txt', 'a') as f:
+        # entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
+        # json.dump(entry, f)

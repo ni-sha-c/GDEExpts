@@ -1,0 +1,17 @@
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 20000,
+  "integration_time": 200,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-05,
+  "optim_name": "AdamW",
+  "dyn_sys": "brusselator"
+}{"train loss": 7.552164449364795e-10, "test loss": 2.6779509428135956e-10, "max of solution": [0.33680048506490917, 0.3335461234421442, 0.3304272772435596], "max of weight": [0.7066668655116376, 0.15185230352126322, 0.14819301992033532], "multi step prediction error": 0.01159408688545227}{"Nerual ODE LE": [-0.0013724624188539876, -1.2564760913477355], "rk4 LE": [-0.0013892782789499685, -1.1736405651629473], "norm difference": 0.08283552789162316}

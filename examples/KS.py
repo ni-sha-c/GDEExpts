@@ -33,8 +33,8 @@ def rhs_KS_implicit(u, dx):
 
     implicit_dudt = -torch.matmul(A, u)
 
-    # return implicit_dudt
-    return A
+    return implicit_dudt
+    # return A
 
 def rhs_KS_explicit(u, c, dx):
     # u contains boundary nodes
@@ -42,11 +42,16 @@ def rhs_KS_explicit(u, c, dx):
 
     B = tosp.spdiags(torch.vstack((ones(n), -ones(n)))/(2*dx), torch.tensor([1,-1]), (n, n))
     B = B.to_dense()
-    B[0, :] = 0
-    B[-1, :] = 0
-    # print("B", B)
+    # B[0, 0] = 0.
+    # B[-1, -1] = 0.
+    print("B", B)
 
-    return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
+    exp_term = - torch.matmul(B, u*u)/2
+    # exp_term = - torch.matmul(B*c, u)
+    exp_term[0], exp_term[-1] = 0., 0. # du_0/dx = 0, du_n/dx = 0
+
+    # return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
+    return exp_term
 
 def explicit_rk(u, c, dx, dt):
     k1 = rhs_KS_explicit(u, c, dx)

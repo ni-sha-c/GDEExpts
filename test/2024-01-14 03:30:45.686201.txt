@@ -1,0 +1,17 @@
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 5000,
+  "integration_time": 200,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-05,
+  "optim_name": "AdamW",
+  "dyn_sys": "coupled_brusselator"
+}{"train loss": 3.7270470443218073e-07, "test loss": 7.354762045602556e-06, "max of solution": [3.015705553934217, 2.991433187890654, 2.991934084512734], "max of weight": [0.5724129862003007, 0.7069987046074625, 0.4022002830404214], "multi step prediction error": 1.6759997606277466}

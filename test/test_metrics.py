@@ -15,6 +15,7 @@ from examples.Lorenz import *
 from examples.Lorenz_periodic import *
 from examples.Sin import *
 from examples.Tent_map import *
+from examples.Coupled_Brusselator import *
 from src import NODE_solve as sol
 
 # TODO: Make sure that all of function starts from calling saved model. So that # it can also be used outside of training loop
@@ -237,7 +238,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
         args: path = path to model '''
 
     # Initialize parameter
-    dyn_sys_func, dim = dyn_sys_info
+    dyn_sys_func, dyn_sys_name, dim = dyn_sys_info
 
     # QR Method where U = tangent vector, V = regular system
     U = torch.eye(dim).double()
