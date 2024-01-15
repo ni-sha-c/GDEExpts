@@ -7,17 +7,17 @@ import torch.sparse as tosp
 # plot timeaverages of spatial average of u for different values of c.
 
 def rhs_KS_implicit(u, dx):
-    # u contains boundary nodes
-    n = u.shape[0]
+    n = u.shape[0]     # u contains boundary nodes i = 0, 1, 2, ... , n, n+1
 
+    # ----- second derivative ----- #
     A = tosp.spdiags(torch.vstack((ones(n), -2*ones(n), ones(n)))/(dx*dx), torch.tensor([-1, 0, 1]), (n, n))
     A = A.to_dense()
 
-
+    # ----- fourth derivative ----- #
     B = tosp.spdiags(torch.vstack((ones(n), -4*ones(n), 6*ones(n), -4*ones(n), ones(n)))/(dx*dx*dx*dx), torch.tensor([-2, -1, 0, 1, 2]), (n-2, n-2))
     B = B.to_dense()
 
-    # Perform the pad 
+    # Create the pad 
     C = torch.zeros(n, n)
     C[1:n-1, 1:n-1] = B
 
@@ -36,8 +36,6 @@ def rhs_KS_implicit(u, dx):
     A += C
 
     implicit_dudt = -torch.matmul(A, u)
-    implicit_dudt[0] = 0.
-    implicit_dudt[-1] = 0.
 
     return implicit_dudt
     # return A
@@ -49,15 +47,11 @@ def rhs_KS_explicit(u, c, dx):
 
     B = tosp.spdiags(torch.vstack((ones(n), -ones(n)))/(2*dx), torch.tensor([1,-1]), (n, n))
     B = B.to_dense()
-    # B[0, 0] = 0.
-    # B[-1, -1] = 0.
     print("B", B)
 
     exp_term = - torch.matmul(B, u*u)/2
-    # exp_term = - torch.matmul(B*c, u)
     exp_term[0], exp_term[-1] = 0., 0. # du_0/dx = 0, du_n/dx = 0
 
-    # return - torch.matmul(B*c, u) - torch.matmul(B, u*u)/2 
     return exp_term
 
 def rhs_KS_explicit_linear(u, c, dx):
@@ -75,10 +69,10 @@ def rhs_KS_explicit_linear(u, c, dx):
     return exp_term
 
 def explicit_rk(u, c, dx, dt):
-    k1 = rhs_KS_explicit(u, c, dx)
-    k2 = rhs_KS_explicit(u + dt/3*k1, c, dx)
-    k3 = rhs_KS_explicit(u + dt*k2, c, dx)
-    k4 = rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx)
+    k1 = rhs_KS_explicit(u, c, dx) + rhs_KS_explicit_linear(u, c, dx)
+    k2 = rhs_KS_explicit(u + dt/3*k1, c, dx) + rhs_KS_explicit_linear(u + dt/3*k1, c, dx)
+    k3 = rhs_KS_explicit(u + dt*k2, c, dx) + rhs_KS_explicit_linear(u + dt*k2, c, dx)
+    k4 = rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx) + rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx)
     return dt*(3/4*k2 - 1/4*k3 + 1/2*k4)
 
 def implicit_rk(u, c, dx, dt):

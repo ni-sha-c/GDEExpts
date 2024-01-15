@@ -2,6 +2,9 @@ import torch as th
 from torch.fft import fft, ifft
 import matplotlib.pyplot as plt
 
+''' returns solution not rhs '''
+
+
 # Spatial grid and initial condition
 N = 128
 x = 32*th.pi*th.arange(1,N+1)/N

@@ -127,7 +127,7 @@ if __name__ == '__main__':
         grid_search_jac_train,
         resources_per_trial={"cpu":32, "gpu": 2},
         config={"reg_param": tune.grid_search([1e-2, 1e-3, 1e-4, 1e-5, 1e-6]),
-                "trans_phase": tune.grid_search([100, 200, 300, 400, 500])})
+                "trans_phase": tune.grid_search([0, 100, 200, 300, 400, 500])})
 
         best_trial = analysis.get_best_trial("loss", "min", "last")
         print(f"Best trial config: {best_trial}")
