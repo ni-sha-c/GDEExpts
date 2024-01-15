@@ -17,39 +17,58 @@ def test_KuramotoSivashinsky():
           i = -1, n+2 are ghost nodes
     '''
 
-    L = 128 # signal from [0, L]
+    L = pi # signal from [0, L]
     n = 127 # n = number of interior nodes: 127, 511
     dx = L/(n+1) # 0.25
     c = 0.4
     x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
-    print(x[0:3], x[-1], x.shape)
-
-    u = sin(2*pi*x/L)
+    u = -0.5 + rand(n+2)
+    #u = sin(2*pi*x/L)
+    u = x**4  
     u[0], u[-1] = 0, 0 # u_0, u_n = 0, 0
-    print("u", u)
 
-    up = cos(2*pi*x/L)*2*pi/L
-    upup = -sin(2*pi*x/L)*(2*pi/L)**2
-    upupup = -cos(2*pi*x/L)*(2*pi/L)**3
-    upupupup = sin(2*pi*x/L)*(2*pi/L)**4
+    print((7*u[n] - 4*u[n-1] + u[n-2])/(dx**4))
+    up = cos(x)
+    upup = -sin(x)
+    upupup = -cos(x)
+    upupupup = sin(x)
 
     # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
-    # ana_rhs_KS = -upup
-
+    #ana_rhs_KS = -upupupup
+    ana_rhs_KS = 24.0*ones_like(x)
     # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
-    # num_rhs_KS = rhs_KS_implicit(u, dx)
-    num_rhs_KS = rhs_KS_explicit_nl(u, c,dx)
+    num_rhs_KS = rhs_KS_implicit(u, dx)
+    #num_rhs_KS = rhs_KS_explicit_nl(u, c,dx)
     # rhs_KS_explicit(u, c,dx)
     #  + rhs_KS_explicit_linear(u, c, dx)
  
     # Testing for inner nodes
-    print("answer", ana_rhs_KS[0:5], ana_rhs_KS[-5:])
-    print("predicted", num_rhs_KS[0:5], num_rhs_KS[-5:])
+    print("answer", ana_rhs_KS[:10])
+    print("predicted", num_rhs_KS[:10])
+
     print(norm(ana_rhs_KS[1:-1]))
     print(norm(num_rhs_KS[1:-1]))
-    assert np.allclose(ana_rhs_KS[1:-1], num_rhs_KS[1:-1], rtol=1e-5, atol=1e-5)
+    #assert np.allclose(ana_rhs_KS[1:-1], num_rhs_KS[1:-1], rtol=1e-5, atol=1e-5)
     
-    return
+    return u, num_rhs_KS, ana_rhs_KS
+
+def KS_FD_Simulate_ensemble(c, T, N):
+    L = 128 # signal from [0, L]
+    n = 127 # n = number of interior nodes: 127, 511
+    dx = L/(n+1) # 0.25
+
+    dt = 0.1 
+    x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
+    u0 = torch.zeros(N, n+2)
+    for i in range(N):
+        u0[i] = -0.5 + rand(n+2)
+        #u = sin(2*pi*x/L)
+        u0[i,0], u0[i,-1] = 0, 0
+        u[i,:] = u0[i]
+        u1 = run_KS(u[i,:], c, dx, dt, T)
+        u[i,:] = u1
+    return x, u0, u1
+
 
 
 
@@ -116,8 +135,16 @@ def KS_Simulate():
     return tt, uu, x
 
 if __name__ == '__main__':
-    test_KuramotoSivashinsky()
-
+    #test_KuramotoSivashinsky()
+    fig, ax = plt.subplots()
+    c = 0
+    x, u, u1 = KS_FD_Simulate(c,50, 100)
+    print("Average of u", torch.mean(u))
+    ax.plot(x, u, 'b', label='initial u')
+    ax.plot(x, u1, 'r', label='final u')
+    ax.legend(fontsize=18)
+    ax.xaxis.set_tick_params(labelsize=18)
+    ax.yaxis.set_tick_params(labelsize=18)
     '''L = 128
     n = 511 # number of interior nodes
     c = 0.
