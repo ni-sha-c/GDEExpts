@@ -33,7 +33,7 @@ def rhs_KS_implicit(u, dx):
 
     print("C after addition", C)
 
-    A += C
+    # A += C
 
     implicit_dudt = -torch.matmul(A, u)
 
@@ -41,7 +41,7 @@ def rhs_KS_implicit(u, dx):
     # return A
 
 
-def rhs_KS_explicit(u, c, dx):
+def rhs_KS_explicit_nl(u, c, dx):
     # u contains boundary nodes
     n = u.shape[0]
 
@@ -69,10 +69,10 @@ def rhs_KS_explicit_linear(u, c, dx):
     return exp_term
 
 def explicit_rk(u, c, dx, dt):
-    k1 = rhs_KS_explicit(u, c, dx) + rhs_KS_explicit_linear(u, c, dx)
-    k2 = rhs_KS_explicit(u + dt/3*k1, c, dx) + rhs_KS_explicit_linear(u + dt/3*k1, c, dx)
-    k3 = rhs_KS_explicit(u + dt*k2, c, dx) + rhs_KS_explicit_linear(u + dt*k2, c, dx)
-    k4 = rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx) + rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx)
+    k1 = rhs_KS_explicit_nl(u, c, dx) + rhs_KS_explicit_linear(u, c, dx)
+    k2 = rhs_KS_explicit_nl(u + dt/3*k1, c, dx) + rhs_KS_explicit_linear(u + dt/3*k1, c, dx)
+    k3 = rhs_KS_explicit_nl(u + dt*k2, c, dx) + rhs_KS_explicit_linear(u + dt*k2, c, dx)
+    k4 = rhs_KS_explicit_nl(u + dt*(0.75*k2 + 0.25*k3), c, dx) + rhs_KS_explicit(u + dt*(0.75*k2 + 0.25*k3), c, dx)
     return dt*(3/4*k2 - 1/4*k3 + 1/2*k4)
 
 def implicit_rk(u, c, dx, dt):

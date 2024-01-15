@@ -18,12 +18,11 @@ def test_KuramotoSivashinsky():
     '''
 
     L = 128 # signal from [0, L]
-    n = 127 # 511 # n = number of interior nodes
+    n = 127 # n = number of interior nodes: 127, 511
     dx = L/(n+1) # 0.25
     c = 0.4
-    x = torch.arange(0, L+dx, dx) # 0, 0 + dx, ... 128 # shape: L + 1
+    x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
     print(x[0:3], x[-1], x.shape)
-    # x = x[1:-1]
 
     u = sin(2*pi*x/L)
     u[0], u[-1] = 0, 0 # u_0, u_n = 0, 0
@@ -33,13 +32,15 @@ def test_KuramotoSivashinsky():
     upup = -sin(2*pi*x/L)*(2*pi/L)**2
     upupup = -cos(2*pi*x/L)*(2*pi/L)**3
     upupupup = sin(2*pi*x/L)*(2*pi/L)**4
+
     # --- ana_rhs_KS: -(u + c)*up - upup - upupupup --- #
-    ana_rhs_KS = -upup -upupupup
-    # ana_rhs_KS = -c*up
+    # ana_rhs_KS = -upup
 
     # --- num_rhs_KS: rhs_KS(u, c, dx) --- #
-    num_rhs_KS = rhs_KS_implicit(u, dx)
-    # num_rhs_KS = rhs_KS_explicit(u, c,dx) + rhs_KS_explicit_linear(u, c, dx)
+    # num_rhs_KS = rhs_KS_implicit(u, dx)
+    num_rhs_KS = rhs_KS_explicit_nl(u, c,dx)
+    # rhs_KS_explicit(u, c,dx)
+    #  + rhs_KS_explicit_linear(u, c, dx)
  
     # Testing for inner nodes
     print("answer", ana_rhs_KS[0:5], ana_rhs_KS[-5:])
