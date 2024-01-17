@@ -593,6 +593,92 @@ def hyperparam_gridsearch(dyn_sys, model, device, dataset, true_t, optim_name, c
     return pred_train, true_train, pred_test, loss_hist, test_loss_hist, error
 
 
+def hyperparam_gridsearch_MSE(dyn_sys, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, rho, reg_param, minibatch=False, batch_size=0):
+
+    # Initialize
+    pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
+    optimizer = define_optimizer(optim_name, model, lr, weight_decay)
+    X, Y, X_test, Y_test = dataset
+    X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
+    num_train = X.shape[0]
+    
+    print("data", X[:10])
+    
+    # Compute True Jacobian
+    t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
+
+    True_J = torch.ones(num_train, 3, 3).to(device)
+    for i in range(num_train):
+        True_J[i] = Jacobian_Matrix(X[i, :], sigma=10.0, r=rho, b=8/3)
+    print(True_J.shape)
+    print("Finished Computing True Jacobian")
+
+    for i in range(epochs): # looping over epochs
+        model.train()
+        model.double()
+
+        if minibatch == True:
+            train_iter, test_iter = create_iterables(dataset, batch_size=batch_size)
+            y_pred = torch.zeros(len(train_iter), batch_size, 3)
+            y_true = torch.zeros(len(train_iter), batch_size, 3)
+            k = 0
+
+            for xk, yk in train_iter:
+                xk = xk.to(device) # [batch size,3]
+                yk = yk.to(device)
+                output = model(xk)
+
+                # save predicted node feature for analysis
+                y_pred[k] = output
+                y_true[k] = yk
+                k += 1
+
+            optimizer.zero_grad()
+            loss = criterion(y_pred, y_true)
+            train_loss = loss.item()
+            loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(y_true.detach().cpu().numpy())
+
+        elif minibatch == False:
+
+            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
+
+            optimizer.zero_grad()
+            # MSE Output Loss
+            MSE_loss = criterion(y_pred, Y)
+            MSE_loss.backward()
+            optimizer.step()
+
+            # leave it for debug purpose for now, and remove it
+            pred_train.append(y_pred.detach().cpu().numpy())
+            true_train.append(Y.detach().cpu().numpy())
+        
+        loss_hist.append(MSE_loss)
+        if i % 1000 == 0:
+            print(i, MSE_loss.item())
+
+        ##### test one_step #####
+        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
+        test_loss_hist.append(test_loss)
+
+        local_loss_hist = torch.stack(loss_hist)
+        np.savetxt('/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/' +"training_loss_MSE_"+str(reg_param)+"_"+str(tran_state)+".csv", np.asarray(local_loss_hist.detach().cpu()), delimiter=",")
+        np.savetxt('/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/' +"test_loss_MSE_"+str(reg_param)+"_"+str(tran_state)+".csv", np.asarray(test_loss_hist), delimiter=",")
+        np.savetxt('/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/test_result/expt_'+str(dyn_sys)+'/'+ optim_name + '/' + str(time_step) + '/' +"dataset_"+str(reg_param)+"_"+str(tran_state)+".csv", np.asarray(X), delimiter=",")
+
+
+        ##### test multi_step #####
+        # if (i+1) == epochs:
+        #    error = test_multistep(dyn_sys, model, epochs, true_t, device, i, optim_name, lr, time_step, real_time, tran_state)
+        error = 0
+
+    return pred_train, true_train, pred_test, loss_hist, test_loss_hist, error
+
+
 def evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, iter, optimizer_name):
 
   with torch.no_grad():

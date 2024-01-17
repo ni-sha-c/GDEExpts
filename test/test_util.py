@@ -485,9 +485,9 @@ if __name__ == '__main__':
     '''device = "cuda" if torch.cuda.is_available() else "cpu"
     plot_3d_trajectory("lorenz", [0,200], "JAC_0", 0.01, torch.tensor([1.0, 1.0, -1.0]).to(device), device, comparison=True)'''
 
-    loss_JAC = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/loss_100_Jacobian.csv", delimiter=",", dtype=float)
+    '''loss_JAC = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/loss_100_Jacobian.csv", delimiter=",", dtype=float)
     loss_MSE = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/loss_100_MSE.csv", delimiter=",", dtype=float)
-    print(np.mean(loss_JAC), np.mean(loss_MSE)) # 0.0467645374708809 0.8517619795713108
+    print(np.mean(loss_JAC), np.mean(loss_MSE))''' # 0.0467645374708809 0.8517619795713108
     
     # init_state = torch.tensor([1.,1.,-1.])
     # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])

@@ -158,17 +158,17 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    # LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
-    # print("NODE LE: ", LE_NODE)
+    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+    print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||
-    # norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
-    # print("Norm Difference: ", norm_difference)
+    norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
+    print("Norm Difference: ", norm_difference)
 
     # with open(str(timestamp)+'.txt', 'a') as f:
-        # entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
-        # json.dump(entry, f)
+        entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
+        json.dump(entry, f)

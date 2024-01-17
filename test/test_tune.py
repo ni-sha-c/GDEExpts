@@ -102,7 +102,7 @@ if __name__ == '__main__':
         # reg 0.01, 100, [-9.3787, -9.9255, 27.5508]
         # reg 0.01, 200, [-7.3727, -7.7015, 25.1829]
 
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = hyperparam_gridsearch(
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = hyperparam_gridsearch_MSE(
             args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch,
             args.lr, args.weight_decay, args.time_step, real_time, config["trans_phase"], rho,
             config["reg_param"], minibatch=args.minibatch, batch_size=args.batch_size
@@ -111,40 +111,32 @@ if __name__ == '__main__':
         return test_loss_hist[-1]  #  metric to optimize
 
     # Train the model, return node
-    if args.loss_type == "Jacobian":
 
-        # GridSearch for reg_param
-        # Start Ray Head Node: $ray start --head
-        
-        ray.init(address='auto', 
-        runtime_env={"working_dir": ".", 
-        "excludes": ["/animation", "/archive_test", "/jacobian_loss", "/.git"],
-        "py_modules": ["/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/src", "/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/examples", "/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/test_result"]}, 
-        log_to_driver=True, 
-        logging_level=logging.DEBUG)
+    # GridSearch for reg_param
+    # Start Ray Head Node: $ray start --head
+    
+    ray.init(address='auto', 
+    runtime_env={"working_dir": ".", 
+    "excludes": ["/animation", "/archive_test", "/jacobian_loss", "/.git"],
+    "py_modules": ["/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/src", "/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/examples", "/storage/home/hcoda1/6/jpark3141/p-nisha3-0/GDEExpts/test_result"]}, 
+    log_to_driver=True, 
+    logging_level=logging.DEBUG)
 
-        analysis = tune.run(
-        grid_search_jac_train,
-        resources_per_trial={"cpu":32, "gpu": 2},
-        config={"reg_param": tune.grid_search([1e-2, 1e-3, 1e-4, 1e-5, 1e-6]),
-                "trans_phase": tune.grid_search([0, 100, 200, 300, 400, 500])})
+    analysis = tune.run(
+    grid_search_jac_train,
+    resources_per_trial={"cpu":32, "gpu": 2},
+    config={"reg_param": tune.grid_search([1e-2, 1e-3, 1e-4, 1e-5, 1e-6]),
+            "trans_phase": tune.grid_search([0, 100, 200, 300, 400, 500])})
 
-        best_trial = analysis.get_best_trial("loss", "min", "last")
-        print(f"Best trial config: {best_trial}")
+    best_trial = analysis.get_best_trial("loss", "min", "last")
+    # print(f"Best trial config: {best_trial}")
 
-        df = analysis.dataframe()
-        print(df)
-        # Plot by epoch
-        ax = None  # This plots everything on the same plot
-        for d in df.values():
-            ax = d.mean_accuracy.plot(ax=ax, legend=True)
-
-
-        # pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, config, minibatch=args.minibatch, batch_size=args.batch_size)
-    elif args.loss_type == "Auto_corr":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
-    else:
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, minibatch=args.minibatch, batch_size=args.batch_size)
+    df = analysis.dataframe()
+    print(df)
+    # Plot by epoch
+    ax = None  # This plots everything on the same plot
+    for d in df.values():
+        ax = d.mean_accuracy.plot(ax=ax, legend=True)
 
 
     # Maximum weights

@@ -5,7 +5,7 @@ from matplotlib import cm
 import sys
 sys.path.append('../examples')
 from KS import *
-from torch import *
+# from torch import *
 
 def test_KuramotoSivashinsky():
     '''
@@ -53,21 +53,31 @@ def test_KuramotoSivashinsky():
     return u, num_rhs_KS, ana_rhs_KS
 
 def KS_FD_Simulate_ensemble(c, T, N):
+    '''
+    N : number of realization
+    '''
     L = 128 # signal from [0, L]
-    n = 127 # n = number of interior nodes: 127, 511
+    n = 127 # n = number of interior nodes
     dx = L/(n+1) # 0.25
-
     dt = 0.1 
     x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
     u0 = torch.zeros(N, n+2)
-    for i in range(N):
-        u0[i] = -0.5 + rand(n+2)
-        #u = sin(2*pi*x/L)
-        u0[i,0], u0[i,-1] = 0, 0
+    u = torch.zeros(N, n+2)
+    realization = torch.zeros(N)
+
+    for i in torch.arange(0, N):
+        # initial signal of 'i'th realization
+        u0[i, :] = -0.5 + rand(n+2)
+        # boundary condition
+        u0[i, 0], u0[i, -1] = 0, 0 
+
         u[i,:] = u0[i]
-        u1 = run_KS(u[i,:], c, dx, dt, T)
+        u1, time_avg = run_KS(u[i,:], c, dx, dt, T)
         u[i,:] = u1
-    return x, u0, u1
+        realization[i] = time_avg
+        print(i, time_avg)
+
+    return x, u0, u, realization
 
 
 
@@ -134,17 +144,32 @@ def KS_Simulate():
 
     return tt, uu, x
 
+
+
 if __name__ == '__main__':
-    #test_KuramotoSivashinsky()
+
     fig, ax = plt.subplots()
-    c = 0
-    x, u, u1 = KS_FD_Simulate(c,50, 100)
-    print("Average of u", torch.mean(u))
-    ax.plot(x, u, 'b', label='initial u')
-    ax.plot(x, u1, 'r', label='final u')
+    c = 1.3
+    x, u, u1, realization = KS_FD_Simulate_ensemble(c, 300, 10)
+    
+    ax.plot(x, u[0], 'b', label='initial u')
+    ax.plot(x, u1[0], 'r', label='final u')
     ax.legend(fontsize=18)
     ax.xaxis.set_tick_params(labelsize=18)
     ax.yaxis.set_tick_params(labelsize=18)
+
+    path = '../plot/KS.png'
+    fig.savefig(path, format='png', dpi=400)
+
+    # run it for various c values
+    '''C = torch.arange(0, 2, 0.1)
+    result = torch.zeros(C.shape[0], 1)
+    for i in C:'''
+
+
+
+
+
     '''L = 128
     n = 511 # number of interior nodes
     c = 0.
@@ -159,8 +184,6 @@ if __name__ == '__main__':
     # u_next = u_next_exp + u_next_imp
     u_bar = []
     
-
-
     for i in T:
         print(i, u)
         u_next_exp = explicit_rk(u, c, dx, dt)

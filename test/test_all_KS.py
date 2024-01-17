@@ -16,6 +16,7 @@ from examples.Lorenz_fixed import *
 from examples.Lorenz_periodic import *
 from examples.Sin import *
 from examples.Tent_map import *
+from examples.KS_new import *
 
 
 if __name__ == '__main__':
@@ -55,7 +56,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     dyn_sys_func, dim = define_dyn_sys(args.dyn_sys)
-    dyn_sys_info = [dyn_sys_func, dim]
+    dyn_sys_info = [dyn_sys_func, args.dyn_sys, dim]
+    
     if args.dyn_sys == "lorenz":
         rho = 28.0
     elif args.dyn_sys == "lorenz_periodic":
@@ -82,8 +84,7 @@ if __name__ == '__main__':
     real_time = args.iters * args.time_step
     print("real time: ", real_time)
 
-    tt, uu, x = KS_Simulate()
-    # print(tt.shape, uu.shape, x.shape) (101,) (101, 1024) (1024,)
+    uu, tt = ks()
 
     # Generate Training/Test/Multi-Step Prediction Data
     whole_traj = uu.T[0]
@@ -98,10 +99,13 @@ if __name__ == '__main__':
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+
+    elif args.loss_type == "Auto_corr":
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
         
     else:
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
 
 
     # Maximum weights
@@ -156,6 +160,6 @@ if __name__ == '__main__':
     norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
     print("Norm Difference: ", norm_difference)
 
-    with open(str(timestamp)+'.txt', 'a') as f:
-        entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
-        json.dump(entry, f)
+    # with open(str(timestamp)+'.txt', 'a') as f:
+    entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
+    json.dump(entry, f)
