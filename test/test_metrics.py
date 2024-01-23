@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torchdiffeq
 from matplotlib.pyplot import * 
+import scipy
 from scipy import stats
 from scipy.stats import ortho_group
 import torch.autograd.functional as F
@@ -16,7 +17,8 @@ from examples.Lorenz_periodic import *
 from examples.Sin import *
 from examples.Tent_map import *
 from examples.Coupled_Brusselator import *
-from src import NODE_solve as sol
+from src.NODE_solve import *
+from src.NODE import *
 
 # TODO: Make sure that all of function starts from calling saved model. So that # it can also be used outside of training loop
 
@@ -160,6 +162,97 @@ def plot_time_average(init, dyn_sys, time_step, optim_name, tau, component, mode
     return
 
 
+def plot_time_average_multi(init, dyn_sys, time_step, optim_name, tau, component, model_name):
+    ''' func: plot |avg(z_tau) - avg(z_t)| '''
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    transition_phase = 0
+
+    # Initialize integration times
+    taus = torch.arange(1, tau+1) # 1 ~ 100
+    len_taus = taus.shape[0]
+    diff_time_avg_rk4 = torch.zeros(len_taus*int(1/time_step))
+    diff_time_avg_node = torch.zeros(len_taus*int(1/time_step))
+
+    fig, ax = subplots(figsize=(20,10))
+    # taus_log = np.log(taus.numpy())
+    taus_x = np.arange(0, tau, time_step)
+
+    # Load the saved model
+    model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=3, n_hidden=64, T=time_step)
+    path = "../test_result/expt_"+str(dyn_sys)+"/"+optim_name+"/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    model.load_state_dict(torch.load(path))
+    model.eval()
+
+    # ----- compute node_tau, rk4_tau ----- #
+    t_eval_point = torch.arange(0, tau, time_step)
+    iters = t_eval_point.shape[0]
+    x = init.to(device)
+    init_2 = torch.tensor([1., 0., 0.])
+
+    phi_tau = torch.zeros(tau, 3).to(device)
+    
+    # rk4_tau
+    sol_tau = torchdiffeq.odeint(lorenz, init, t_eval_point, method='rk4', rtol=1e-8) 
+    time_avg_tau_rk4 = torch.mean(sol_tau[:, component])
+
+
+    # node_tau
+    phi_tau = torchdiffeq.odeint(model, init, t_eval_point, method='rk4', rtol=1e-8) 
+    time_avg_tau_node = torch.mean(phi_tau[:, component])
+
+    #----- Create phi_rk4[:, component] -----#
+    for i in range(len_taus*int(1/time_step)):
+
+        # compute time average at integration time = n
+        time_avg_rk4 = torch.mean(sol_tau[:i, component])
+        # calculate average and difference
+        diff_time_avg_rk4[i] = time_avg_rk4 - time_avg_tau_rk4
+
+    print("mean rk4: ", time_avg_tau_rk4)
+    print("sanity check rk4: ", diff_time_avg_rk4[-1])
+
+
+    #----- Create phi_NODE[:, component] -----#
+    x = init.to(device)
+    for i in range(len_taus*int(1/time_step)):
+
+        # compute time average at integration time = n
+        time_avg_n = torch.mean(phi_tau[:i, component])
+        # calculate average and difference
+        diff_time_avg_node[i] = time_avg_n - time_avg_tau_rk4 #time_avg_tau_node
+         #
+
+        print("diff: ", i, diff_time_avg_node[i], "\n")
+
+    print("model mean: ", time_avg_tau_node)
+    print("sanity check node: ", diff_time_avg_node[-1], "\n")
+
+
+
+    rk4 = np.abs(diff_time_avg_rk4.detach().numpy())
+    node = np.abs(diff_time_avg_node.detach().numpy())
+    rk4[-1], node[-1] = 1e-3, 1e-3
+
+
+    ax.semilogy(np.log10(taus_x), rk4, color=(0.25, 0.25, 0.25), marker='o', linewidth=4, alpha=1)
+    ax.semilogy(np.log10(taus_x), node, color="slateblue", marker='o', linewidth=4, alpha=1)
+
+    ax.grid(True)
+    ax.set_xlabel(r"$log(n \times \delta t)$", fontsize=24)
+    ax.set_ylabel(r"log $|\bar z(\tau) - \bar z|$", fontsize=24)
+    ax.set_title(r"Log-log Plot for Time Average Convergence", fontsize=24)
+    ax.legend(['rk4', 'NODE'], fontsize=24)
+    ax.xaxis.set_tick_params(labelsize=24)
+    ax.yaxis.set_tick_params(labelsize=24)
+    tight_layout()
+
+    pdf_path = '../plot/timeavg_'+str(model_name)+'_'+str(torch.round(init, decimals=4).tolist())+'.pdf'
+    fig.savefig(pdf_path, format='pdf', dpi=400)
+
+    return
+
+
 
 def perturbed_multi_step_error(method, x, eps, optim_name, time_step, integration_time):
     ''' Generate plot for ∥φt(x0) - φt(x0 + εv0)∥ 
@@ -253,11 +346,11 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
         t_eval_point = t_eval_point.to(device)
 
         # load the saved model
-        model = sol.create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
         model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
-        for i in range(0, iters):
+        for i in range(iters):
             if i % 1000 == 0:
                 print(i)
 
@@ -269,15 +362,15 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
 
             # QR Decomposition for J
-            Q, R = np.linalg.qr(J.clone().detach().numpy())
+            Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal())))
-            U = torch.tensor(Q) #new axes after iteration
+            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            U = Q #new axes after iteration
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
     else:
-        for i in range(0, iters):
+        for i in range(iters):
 
             #update x0
             x0 = true_traj[i].double()
@@ -285,10 +378,93 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             J = torch.matmul(cur_J, U)
 
             # QR Decomposition for J
-            Q, R = np.linalg.qr(J.clone().detach().numpy())
+            Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal())))
-            U = torch.tensor(Q).double() #new axes after iteration
+            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            U = Q.double() #new axes after iteration
+
+        LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
+
+    return torch.tensor(LE)
+
+
+
+def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, dt, time_step, optim_name, method, path):
+    ''' Compute Lyapunov Exponents 
+        args: path = path to model '''
+
+    # Initialize parameter
+    dyn_sys_func, dyn_sys_name, dim = dyn_sys_info
+    print("d", dim)
+
+    # QR Method where U = tangent vector, V = regular system
+    U = torch.eye(dim).double()
+    lyap_exp = [] #empty list to store the lengths of the orthogonal axes
+
+    real_time = iters * time_step
+    t_eval_point = torch.linspace(0, time_step, 2)
+    tran = 0
+    print("true traj", true_traj.shape)
+
+    if method == "NODE":
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        t_eval_point = t_eval_point.to(device)
+
+        # load the saved model
+        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model.load_state_dict(torch.load(path), strict=False)
+        model.eval()
+
+        for i in range(iters):
+            if i % 1000 == 0:
+                print(i)
+
+            #update x0
+            x0 = true_traj[i].to(device).double()
+            # cur_J = model(x0).clone().detach()
+            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
+            print(cur_J.shape, U.shape)
+            #print(cur_J)
+            J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
+
+            # QR Decomposition for J
+            Q, R = torch.linalg.qr(J)
+
+            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            U = Q #new axes after iteration
+
+        LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
+
+    else:
+        
+        for i in range(iters):
+            print("rk4", i) 
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+            #update x0
+            x0 = true_traj[i]
+            print("x0", x0.shape)
+            v = torch.ones(x0.shape[0]).to(device)
+
+            func = lambda x: run_KS(x, c, dx, dt, dt*2, False, device)[1]
+            res = func(x0).squeeze()
+            print(res.shape)
+            x0.retain_grad()
+            # res.backward(v)
+            cur_J = torch.zeros(res.shape[0], res.shape[0])
+            for j in range(res.shape[0]):
+                res[j].backward(retain_graph=True)
+                cur_J[j] = x0.grad
+                # print("Retained Gradient:", cur_J[j])
+                x0.grad.zero_()
+
+            J = torch.matmul(cur_J.to(device).double(), U.to(device).double())
+
+            # QR Decomposition for J
+            Q, R = torch.linalg.qr(J)
+
+            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().cpu().numpy()))
+            U = Q.double() #new axes after iteration
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
@@ -310,7 +486,7 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
     # jacobian_node
     if method == "NODE":
         # Load the model
-        model = sol.create_NODE(device, dyn_sys=dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model = create_NODE(device, dyn_sys=dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
         path = "../test_result/expt_"+dyn_sys+"/"+optim_name+"/"+str(time_step)+'/'+'model.pt'
         model.load_state_dict(torch.load(path))
         model.eval()
@@ -331,6 +507,9 @@ def test_jacobian(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_s
     print("eigenvalue of J^2: ", torch.linalg.eigvals(jac_2), "\n")
 
     return
+
+
+
     
 
 def compute_wasserstein(device, int_time, init_state, time_step, model_name):
@@ -348,12 +527,38 @@ def compute_wasserstein(device, int_time, init_state, time_step, model_name):
     true_data = simulate(lorenz, ti, tf, init_state, time_step).detach().cpu().numpy()
 
     # Compute Wasserstein Distance
-    dist_x = wasserstein_distance(node_data[:, 0], true_data[:, 0])
-    dist_y = wasserstein_distance(node_data[:, 1], true_data[:, 1])
-    dist_z = wasserstein_distance(node_data[:, 2], true_data[:, 2])
+    dist_x = scipy.stats.wasserstein_distance(node_data[:, 0], true_data[:, 0])
+    dist_y = scipy.stats.wasserstein_distance(node_data[:, 1], true_data[:, 1])
+    dist_z = scipy.stats.wasserstein_distance(node_data[:, 2], true_data[:, 2])
     print(dist_x, dist_y, dist_z)
+    print(torch.norm(torch.tensor([dist_x, dist_y, dist_z])))
 
     return
+
+
+def compute_timeavg(device, int_time, init_state, time_step, model_name):
+    ti, tf = int_time
+
+    # Load the saved model
+    model = ODE_Lorenz().to(device)
+    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    print("Finished Loading model")
+
+    node_data = simulate(model, ti, tf, init_state, time_step)
+    node_data = node_data.detach().cpu().numpy()
+    true_data = simulate(lorenz, ti, tf, init_state, time_step).detach().cpu().numpy()
+
+    # Compute Wasserstein Distance
+    dist_x = np.mean(node_data[:, 0]) - np.mean(true_data[:, 0])
+    dist_y = np.mean(node_data[:, 1]) - np.mean(true_data[:, 1])
+    dist_z = np.mean(node_data[:, 2]) - np.mean(true_data[:, 2])
+    print(dist_x, dist_y, dist_z)
+    print(torch.norm(torch.tensor([dist_x, dist_y, dist_z])))
+
+    return
+
 
 def test_stability(device, x0, method, time_step, optim_name, dyn_sys_info, dyn_sys):
     ''' 1. Generate 100 pair of (S, S') 
@@ -394,12 +599,15 @@ if __name__ == '__main__':
     torch.set_printoptions(sci_mode=False, precision=5)
 
     # ---- Test Wasserstein Distance ----- #
-    '''init_state = torch.tensor([1.,1.,-1.])
-    # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
+    # init_state_out = torch.tensor([1.,1.,-1.])
+    # init_state_inner = torch.tensor([14.9440, 13.9801, 36.6756])
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    compute_wasserstein(device, [0, 500], init_state.to(device), 0.01, "JAC_300")'''
+    '''compute_timeavg(device, [0, 500], init_state.to(device), 0.01, "MSE_0")
+    compute_timeavg(device, [0, 500], init_state.to(device), 0.01, "MSE_5")
+    compute_timeavg(device, [0, 500], init_state.to(device), 0.01, "JAC_0")
+    compute_timeavg(device, [0, 500], init_state.to(device), 0.01, "JAC_5")'''
 
     # ----- Test Jacobian ----- #
     '''device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -409,22 +617,37 @@ if __name__ == '__main__':
     test_jacobian(device, x, "rk4", 0.01, "AdamW", [lorenz, 3], "lorenz")'''
 
     # ----- compute lyapunov exponent ----- #
-    '''x = torch.randn(3)
+    init_state_out = torch.tensor([1.,1.,-1.])
+    init_state_inner = torch.tensor([14.9440, 13.9801, 36.6756])
+
+    longer_traj = simulate(lorenz, 0, 500, init_state_out, 0.01)
+
     t_eval_point = torch.arange(0,500,1e-2)
-    true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) #transition phase
-    # dyn_sys, dyn_sys_info, true_traj, iters, x0, time_step, optim_name, method
-    LE_node = lyap_exps("lorenz", [lorenz, 3], true_traj = true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="NODE")
-    print("NODE: ", LE_node)'''
+    # true_traj = torchdiffeq.odeint(lorenz, x, t_eval_point, method='rk4', rtol=1e-8) #transition phase
+    MSE0_path = "../test_result/expt_lorenz/AdamW/0.01/MSE_0/model.pt"
+    MSE5_path = "../test_result/expt_lorenz/AdamW/0.01/MSE_5/model.pt"
+    JAC0_path = "../test_result/expt_lorenz/AdamW/0.01/JAC_0/model.pt"
+    JAC5_path = "../test_result/expt_lorenz/AdamW/0.01/JAC_5/model.pt"
+
+    MSE0_LE_NODE = lyap_exps("lorenz", [lorenz, "lorenz", 3], longer_traj, iters=5*10**4, time_step= 0.01, optim_name="AdamW", method="NODE", path=MSE0_path)
     
-    # LE_rk4, u = lyap_exps("lorenz_periodic", [lorenz_periodic, 3], true_traj, iters=5*(10**4), time_step= 1e-2, optim_name="AdamW", method="rk4")
-    # print("rk4 LE: ", LE_rk4)
+    MSE5_LE_NODE = lyap_exps("lorenz", [lorenz, "lorenz", 3], longer_traj, iters=5*10**4, time_step= 0.01, optim_name="AdamW", method="NODE", path=MSE5_path)
+    
+    JAC0_LE_NODE = lyap_exps("lorenz", [lorenz, "lorenz", 3], longer_traj, iters=5*10**4, time_step= 0.01, optim_name="AdamW", method="NODE", path=JAC0_path)
+    
+    JAC5_LE_NODE = lyap_exps("lorenz", [lorenz, "lorenz", 3], longer_traj, iters=5*10**4, time_step= 0.01, optim_name="AdamW", method="NODE", path=JAC5_path)
+
+    print(MSE0_LE_NODE, MSE5_LE_NODE, JAC0_LE_NODE, JAC5_LE_NODE)
+    
+    LE_rk4 = lyap_exps("lorenz", [lorenz, "lorenz", 3], longer_traj, iters=5*10**4, time_step= 0.01, optim_name="AdamW", method="rk4", path=JAC5_path)
+    print("rk4 LE: ", LE_rk4)
 
     # relative_error(optim_name="AdamW", time_step=0.01)
     # fixed_x = torch.tensor([0.01, 0.01, 0.01], requires_grad=True)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    '''device = 'cuda' if torch.cuda.is_available() else 'cpu'
     #init = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
     init = torch.tensor([1., 0., 0.])
-    plot_time_average(init.to(device), dyn_sys="lorenz", time_step=0.01, optim_name='AdamW', tau=500, component=2, model_name="JAC_0")
+    plot_time_average(init.to(device), dyn_sys="lorenz", time_step=0.01, optim_name='AdamW', tau=500, component=2, model_name="JAC_0")'''
 
     #perturbed_multi_step_error("rk4", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)
     #perturbed_multi_step_error("NODE", x, eps, optim_name="AdamW", time_step=0.01, integration_time=1500)

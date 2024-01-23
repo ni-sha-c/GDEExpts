@@ -82,13 +82,13 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         cmap = cm.plasma
 
-        axs[0,0].plot(true_x[0], true_y[0], '+', markersize=15, color=cmap.colors[0])
+        axs[0,0].plot(true_x[0], true_y[0], '+', markersize=35, color=cmap.colors[0])
         axs[0,0].scatter(true_x, true_y, c=true_z, s = 6, cmap='plasma', alpha=0.5)
         axs[0,0].set_xlabel("X", fontsize=48)
         axs[0,0].set_ylabel("Y", fontsize=48)
         axs[0,0].tick_params(labelsize=48)
 
-        axs[0,1].plot(true_x[0], true_z[0], '+', markersize=15, color=cmap.colors[0])
+        axs[0,1].plot(true_x[0], true_z[0], '+', markersize=35, color=cmap.colors[0])
         axs[0,1].scatter(true_x, true_z, c=true_z, s = 6,cmap='plasma', alpha=0.5)
         axs[0,1].set_xlabel("X", fontsize=48)
         axs[0,1].set_ylabel("Z", fontsize=48)
@@ -121,7 +121,7 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         tight_layout()
         #plt.colorbar(sc)
-        fig.savefig(pdf_path, format='pdf', dpi=1200)
+        fig.savefig(pdf_path, format='png', dpi=1200, bbox_inches ='tight', pad_inches = 0.1)
     
     # If want to plot comparison plot between NODE vs true trajectory
     else:
@@ -134,7 +134,7 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
         model.eval()
         print("Finished Loading model")
  
-        data = simulate(model, ti, tf, init_state.to(device), time_step)
+        data = simulate(model.double(), ti, tf, init_state.double().to(device), time_step)
         data = data.detach().cpu().numpy()
 
         # limit = 50000
@@ -154,28 +154,29 @@ def plot_3d_space(device, dyn_sys, time_step, optim_name, NODE, integration_time
 
         # Create the first subplot
         ax1 = subplot(gs[0])
-        ax1.plot(x[0], z[0], '+', markersize=15, color=cmap.colors[0])
-        ax1.scatter(x, z, c=t, s = 4, cmap='winter', alpha=0.5)
-        ax1.set_xlabel("X", fontsize=24)
-        ax1.set_ylabel("Z", fontsize=24)
-        ax1.set_title("Phase Portrait of Neural ODE", fontsize=18)
-        ax1.tick_params(labelsize=24)
+        ax1.plot(x[0], z[0], marker='P', markersize=30, color="black", linewidth=2)
+        ax1.scatter(x, z, c=t, s = 4, cmap='winter', alpha=0.6)
+        ax1.set_xlabel("X", fontsize=32)
+        ax1.set_ylabel("Z", fontsize=32)
+        # ax1.set_title("Phase Portrait of Neural ODE", fontsize=18)
+        ax1.tick_params(labelsize=32)
 
         # Create the second subplot
         ax2 = subplot(gs[1], sharey=ax1)  # sharey ensures equal height
-        ax2.plot(x_true[0], z_true[0], '+', markersize=15, color=cmap.colors[0])
-        sc = ax2.scatter(x_true, z_true, c=t, s = 4,cmap='winter', alpha=0.5)
-        ax2.set_xlabel("X", fontsize=24)
-        ax2.set_ylabel("Z", fontsize=24)
-        ax2.set_title("Phase Portrait of True ODE", fontsize=18)
-        ax2.tick_params(labelsize=24)
+        ax2.plot(x_true[0], z_true[0], marker='P', markersize=30, color="black", linewidth=2)
+        sc = ax2.scatter(x_true, z_true, c=t, s = 4,cmap='winter', alpha=0.6)
+        ax2.set_xlabel("X", fontsize=32)
+        ax2.set_ylabel("Z", fontsize=32)
+        # ax2.set_title("Phase Portrait of True ODE", fontsize=18)
+        ax2.tick_params(labelsize=32)
 
         # Add a colorbar to the right of the subplots
         cax = subplot(gs[2])
         cbar = colorbar(sc, cax=cax)
+        cbar.ax.tick_params(labelsize=28)
         tight_layout()
 
-        fig.savefig(pdf_path, format='pdf', dpi=1200)
+        fig.savefig(pdf_path, format='png', dpi=1200, bbox_inches ='tight', pad_inches = 0.1)
     return
 
 
@@ -387,34 +388,38 @@ def LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01):
 
 
 
-def plot_loss(MSE_train, MSE_test, J_train, J_test):
+def plot_loss(MSE_train, MSE_test, J_train, J_test, MSE_train_5, MSE_test_5, J_train_5, J_test_5):
     fig, axs = subplots(1, 2, figsize=(24, 8)) #, sharey=True
-    fig.suptitle("Loss Behavior of Jacobian Loss Compared to MSE Loss", fontsize=24)
+    # fig.suptitle("Loss Behavior of Jacobian Loss Compared to MSE Loss", fontsize=24)
     
-    colors = cm.tab20b(np.linspace(0, 1, 20))
+    colors = cm.turbo(np.linspace(0, 1, 20))
 
     # Training Loss
     x = np.arange(0, MSE_train.shape[0])
 
-    axs[0].plot(x[:], MSE_train[:], c=colors[15], label='Training Loss of MSE', alpha=0.9, linewidth=5)
-    axs[0].plot(x[:], J_train[:], c=colors[1], label='Training Loss of Jacobian Loss', alpha=0.9, linewidth=5)
+    axs[0].plot(MSE_train[0:500], c=colors[16], label='MSE_0', alpha=0.9, linewidth=4, marker='o', markersize=18, markevery=50)
+    axs[0].plot(J_train[0:500], c=colors[5], label='JAC_0', alpha=0.9, linewidth=4, marker='s', markersize=18, markevery=50)
+    axs[0].plot(MSE_train_5[0:500], c=colors[8], label='MSE_5', alpha=0.9, linewidth=4, marker='8', markersize=18, markevery=50)
+    axs[0].plot(J_train_5[0:500], c=colors[1], label='JAC_5', alpha=0.9, linewidth=4, marker='*', markersize=18, markevery=50)
     axs[0].grid(True)
-    axs[0].legend(loc='best', fontsize=20)
-    axs[0].set_ylabel(r'$\mathcal{L}$', fontsize=24)
-    axs[0].set_xlabel('Number of Epoch', fontsize=24)
-    axs[0].tick_params(labelsize=24)
+    axs[0].legend(loc='best', fontsize=38)
+    axs[0].set_ylabel('Train Loss', fontsize=40)
+    axs[0].set_xlabel('Epoch', fontsize=40)
+    axs[0].tick_params(labelsize=40)
 
     # Test Loss
-    axs[1].plot(MSE_test, c=colors[15], label='Test Loss of MSE in MSE', alpha=0.9, linewidth=5)
-    axs[1].plot(J_test, c=colors[1],label='Test Loss of Jacobian Loss in MSE', alpha=0.9, linewidth=5)
+    axs[1].plot(x[0:500], MSE_test[0:500], c=colors[16], label='MSE_0 in MSE', alpha=0.9, linewidth=4, marker='o', markersize=18, markevery=50)
+    axs[1].plot(x[0:500], J_test[0:500], c=colors[5],label='JAC_0 in MSE', alpha=0.9, linewidth=4, marker='s', markersize=18, markevery=50)
+    axs[1].plot(x[0:500], MSE_test_5[0:500], c=colors[8], label='MSE_5 in MSE', alpha=0.9, linewidth=4, marker='8', markersize=18, markevery=50)
+    axs[1].plot(x[0:500], J_test_5[0:500], c=colors[1],label='JAC_5 in MSE', alpha=0.9, linewidth=4, marker='*', markersize=18, markevery=50)
     axs[1].grid(True)
-    axs[1].legend(loc='best', fontsize=20)
-    axs[1].tick_params(labelsize=24)
-    axs[1].set_ylabel(r'$\mathcal{L}$', fontsize=24)
-    axs[1].set_xlabel('Number of Epoch', fontsize=24)
+    axs[1].legend(loc='best', fontsize=38)
+    axs[1].tick_params(labelsize=40)
+    axs[1].set_ylabel('Test Loss', fontsize=40)
+    axs[1].set_xlabel('Epoch', fontsize=40)
 
     tight_layout()
-    savefig('../plot/loss_behavior.svg', format='svg', dpi=600, bbox_inches ='tight', pad_inches = 0.1)
+    savefig('../plot/loss_behavior.png', format='png', dpi=800, bbox_inches ='tight', pad_inches = 0.1)
 
     return
 
@@ -494,36 +499,39 @@ if __name__ == '__main__':
     # init_state = torch.tensor([1., 0., 0.])
     # plot_distribution("lorenz", [0, 500], "JAC_300", init_state, 0.01)
 
-    MSE_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
-    MSE_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
-    J_train = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/training_loss.csv", delimiter=",", dtype=float)
-    J_test = traj = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/test_loss.csv", delimiter=",", dtype=float)
+    MSE_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
+    MSE_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
+    J_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/training_loss.csv", delimiter=",", dtype=float)
+    J_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/test_loss.csv", delimiter=",", dtype=float)
+    MSE_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/training_loss.csv", delimiter=",", dtype=float)
+    MSE_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/test_loss.csv", delimiter=",", dtype=float)
+    J_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/training_loss.csv", delimiter=",", dtype=float)
+    J_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/test_loss.csv", delimiter=",", dtype=float)
     
-    # plot_loss_MSE(MSE_train, MSE_test, "MSE_0")
-    plot_loss(MSE_train, MSE_test, J_train, J_test)
+    plot_loss(MSE_train, MSE_test, J_train, J_test, MSE_train_5, MSE_test_5, J_train_5, J_test_5)
 
 
-    '''#----- test plot_3d_space() -----#
-    time_step = 0.01
+    #----- test plot_3d_space() -----#
+    '''time_step = 0.01
     model = "MSE_0"
 
     # in attractor/ call training point: load csv file, 90*int(1/time_step)
-    # traj = np.loadtxt("../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/whole_traj.csv', delimiter=",", dtype=float)
-    # init_state = torch.tensor(traj[90*int(1/time_step), :]).double()
-    # print(init_state)
+    traj = np.loadtxt("../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/whole_traj.csv', delimiter=",", dtype=float)
+    init_state = torch.tensor(traj[90*int(1/time_step), :]).double()
+    print(init_state)
 
     # out of attractor
     # init_state = torch.tensor([1.,1.,-1.])
-    init_state = torch.tensor([9.39,9.51,28.06])
+    # init_state = torch.tensor([9.39,9.51,28.06])
 
     # call model
     model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model)+'/model.pt'
-    pdf_path = '../plot/three_phase_plot_'+str(model)+'_'+str(init_state.tolist())+'.pdf'
+    pdf_path = '../plot/three_phase_plot_'+str(model)+'_'+str(init_state.tolist())+'.png'
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 500], True, 40000, 50000, init_state, model_path, pdf_path)'''
+    plot_3d_space(device, "lorenz", 0.01, "AdamW", True, [0, 100], False, 0, 50000, init_state, model_path, pdf_path)'''
 
-    #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)'''
+    #LE_diff_rho(dyn_sys="lorenz", r_range=200, dr=5, time_step=0.01)
 
 
     #----- test bifurcation plot -----#

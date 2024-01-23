@@ -17,7 +17,9 @@ from examples.Brusselator import *
 from examples.Lorenz_periodic import *
 from examples.Lorenz import *
 from examples.Sin import *
+from examples.KS import *
 from examples.Tent_map import *
+from examples.Henon import *
 from examples.Coupled_Brusselator import *
 
 
@@ -68,9 +70,13 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
     X = np.zeros((n_train, n_nodes))
     Y = np.zeros((n_train, n_nodes))
 
-    for i in range(n_train):
+    if torch.is_tensor(traj):
+        traj = traj.detach().cpu().numpy()
+    for i in torch.arange(0, n_train, 1):
+        i = int(i)
         X[i] = traj[n_trans+i]
         Y[i] = traj[n_trans+1+i]
+        # print("X", X[i])
 
     X = torch.tensor(X).reshape(n_train,n_nodes)
     Y = torch.tensor(Y).reshape(n_train,n_nodes)
@@ -79,7 +85,8 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
     X_test = np.zeros((n_test, n_nodes))
     Y_test = np.zeros((n_test, n_nodes))
 
-    for i in range(n_test):
+    for i in torch.arange(0, n_test, 1):
+        i = int(i)
         X_test[i] = traj[n_trans+n_train+i]
         Y_test[i] = traj[n_trans+1+n_train+i]
 
@@ -92,6 +99,8 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
 def define_dyn_sys(dyn_sys):
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
+                  'KS': [run_KS, 128],
+                  'henon' : [henon, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_periodic' : [lorenz_periodic, 3],
                   'lorenz' : [lorenz, 3],
@@ -109,6 +118,8 @@ def create_NODE(device, dyn_sys, n_nodes, n_hidden, T):
 
     DYNSYS_NN_MAP = {'sin' : ODE_Sin,
                   'tent_map' : ODE_Tent,
+                  'KS': ODE_KS,
+                  'henon': ODE_henon,
                   'brusselator' : ODE_Brusselator,
                   'lorenz_periodic' : ODE_Lorenz_periodic,
                   'lorenz' : ODE_Lorenz,
@@ -249,6 +260,13 @@ def Jacobian_Brusselator(dyn_sys_f, x):
 
     return matrix
 
+def Jacobian_Henon(X):
+    x, y = X
+    a=1.4
+    b=0.3
+
+    return torch.stack([torch.tensor([- 2*a*x, 1]), torch.tensor([b, 0])])
+
 
 # ------------- #
 # Training Loop #
@@ -357,6 +375,49 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
         print("Computing Jacobian of Brusselator!!")
         for i in range(num_train):
             True_J[i] = Jacobian_Brusselator(dyn_sys, X[i, :])
+    elif dyn_sys_name == "henon":
+        print("henon")
+        for i in range(num_train):
+            True_J[i] = Jacobian_Henon(X[i, :])
+    elif dyn_sys_name == "KS":
+        print("KS")
+
+        L = 128
+        n = L-1 # num of internal node
+        T = 20 #1000
+        c = 0.4
+        dx = 1 # 0.25
+        dt = 0.25
+        eps=1e-13
+        dim = X.shape[1]
+        jac_rk4_fd = torch.zeros(dim,dim).double()
+        True_J = True_J.double()
+
+        for i in range(num_train):
+            # True_J[i] = F.jacobian(lambda x: run_KS(x, c, dx, dt, T, False), X[i, :])
+            print("train", i)
+            x = X[i, :]
+            
+            # Finite Differentiation using Central Difference Approximation
+            for j in range(dim):
+                x_plus = x.clone()
+                x_minus = x.clone()
+
+                # create perturbed input
+                x_plus[j] = x_plus[j] + eps
+                x_minus[j] = x_minus[j] - eps
+
+                # create model output
+                m_plus = run_KS(x_plus, c, dx, dt, T, False, device)[:X.shape[0]]
+                #print("mp", m_plus)
+                m_minus = run_KS(x_minus, c, dx, dt, T, False, device)[:X.shape[0]]
+
+                # compute central diff
+                diff = m_plus.clone().detach() - m_minus.clone().detach()
+                final = diff/2/eps
+                jac_rk4_fd[:, j] = final
+            True_J[i] = jac_rk4_fd
+
     print(True_J.shape)
     print("Finished Computing True Jacobian")
 
@@ -431,7 +492,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterion, epochs, lr, weight_decay, time_step, real_time, tran_state, multi_step = False, minibatch=False, batch_size=0):
 
     # Initialize
-    pred_train, true_train, loss_hist, test_loss_hist = ([] for i in range(4))
+    pred_train, true_train, loss_hist, test_loss_hist = [], [], [], []
     optimizer = define_optimizer(optim_name, model, lr, weight_decay)
     X, Y, X_test, Y_test = dataset
     X, Y, X_test, Y_test = X.to(device), Y.to(device), X_test.to(device), Y_test.to(device)
@@ -440,7 +501,7 @@ def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
     # dyn_sys_info = [dyn_sys_func, dim]
     dyn_sys, dyn_sys_name, dim = dyn_sys_info
 
-    for i in range(epochs): # looping over epochs
+    for i in range(0, epochs, 1): # looping over epochs
         model.train()
         model.double()
 
@@ -473,6 +534,10 @@ def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 
         elif minibatch == False:
 
+            # if dyn_sys_name == "KS":
+            #     # print(model)
+            #     y_pred = model(t_eval_point, X).to(device)
+            # else:
             y_pred = solve_odefunc(model, t_eval_point, X).to(device)
 
             optimizer.zero_grad()

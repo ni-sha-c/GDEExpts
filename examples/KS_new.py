@@ -1,14 +1,16 @@
 import torch as th
 from torch.fft import fft, ifft
 import matplotlib.pyplot as plt
+import numpy as np
+
+from matplotlib.pyplot import cm
 
 ''' returns solution not rhs '''
 
-def ks():
+def ks(N, x):
     # Spatial grid and initial condition
-    N = 128
-    x = 32*th.pi*th.arange(1,N+1)/N
-    u = th.cos(x/16)*(1+th.sin(x/16))
+    # u = th.cos(x/16)*(1+th.sin(x/16))
+    u = x
     v = fft(u)
 
     # Precompute ETDRK4 scalar quantities
@@ -28,7 +30,7 @@ def ks():
     # Timestepping
     uu = [u]
     tt = [0]
-    tmax = 150
+    tmax = 600
     nmax = int(tmax/h)
     nplt = int((tmax/100)/h)
     g = -.5j*k
@@ -50,8 +52,33 @@ def ks():
 
     uu = th.stack(uu)
     tt = th.tensor(tt)
-    return uu, tt
+    return uu, tt, L
 # print(uu.shape, tt.shape)
 
 # plt.imshow(uu)
 # plt.show()
+
+N = 128
+# x = 32*th.pi*th.arange(1,N+1)/N
+x = -0.5 + th.rand(N)
+
+uu, t, L = ks(N, x)
+
+# plot the result
+fig, ax = plt.subplots(figsize=(10,8))
+# x = np.arange(0, L+dx, dx)
+# t = np.arange9(0, T+dt, dt)
+t = t.detach().cpu().numpy()
+print("t", t.shape)
+
+xx, tt = np.meshgrid(x, t)
+u = uu.detach().cpu().numpy()
+levels = np.arange(-3, 3, 0.01)
+
+cs = ax.contourf(xx, tt, u.T, cmap=cm.jet)
+fig.colorbar(cs)
+
+ax.set_xlabel("x")
+ax.set_ylabel("t")
+ax.set_title(f"Kuramoto-Sivashinsky: L = {L}")
+fig.savefig("../plot/KS_new.png")

@@ -1,0 +1,16 @@
+When starting from the attractor, torch.tensor([14.9440, 13.9801, 36.6756])
+
+MSE_0: tensor([ 0.91167, -0.01709, -5.88878], dtype=torch.float64) 
+MSE_5: tensor([     0.92493,      0.00036,     -6.11504], dtype=torch.float64) 
+JAC_0: tensor([     0.91106,     -0.01331,    -14.54725], dtype=torch.float64) 
+JAC_5: tensor([  0.92615,  -0.02491, -14.49289], dtype=torch.float64)
+rk4 LE:  tensor([     0.90608,     -0.00228,    -14.57037], dtype=torch.float64)
+
+
+When starting out of the attractor, torch.tensor([1.,1.,-1.])
+
+MSE_0: tensor([ 0.90464, -0.01693, -5.97267], dtype=torch.float64) 
+MSE_5: tensor([     0.91914,      0.00577,     -6.09203], dtype=torch.float64) 
+JAC_0: tensor([     0.87984,     -0.01272,    -14.51717], dtype=torch.float64) 
+JAC_5: tensor([  0.94415,  -0.02560, -14.47198], dtype=torch.float64)
+rk4 LE:  tensor([     0.87843,     -0.00158,    -14.54341], dtype=torch.float64)

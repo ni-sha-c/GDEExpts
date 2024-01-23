@@ -12,6 +12,12 @@ def solve_odefunc(odefunc, t, y0):
     final_state = solution[-1]
     return final_state
 
+def solve_KS(odefunc, t, y0):
+
+    # solution = torchdiffeq.odeint_adjoint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
+    solution = torchdiffeq.odeint(odefunc, y0, t, rtol=1e-9, atol=1e-9, method="rk4")
+    final_state = solution[-1]
+    return final_state
 
 # class ODEBlock(nn.Module):
 #     def __init__(self, T, odefunc:nn.Module, method:str='rk4', rtol:float=1e-9, atol:float=1e-9, adjoint:bool=False):
@@ -57,6 +63,43 @@ class ODE_Lorenz(nn.Module):
         res = self.net(y)
         return res
 
+class ODE_henon(nn.Module):
+    '''Define Neural Network that approximates differential equation system of Chaotic Lorenz'''
+
+    def __init__(self, y_dim=3, n_hidden=32*9):
+        super(ODE_henon, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 32 * 14),
+            nn.GELU(),
+            nn.Linear(32 * 14, 64 * 14),
+            nn.GELU(),
+            nn.Linear(64 * 14, 2)
+        )
+        # self.t = torch.linspace(0, 0.01, 2)
+
+    def forward(self, t, y):
+        res = self.net(y)
+        return res
+
+
+class ODE_KS (nn.Module):
+
+  def __init__( self , y_dim=2 , n_hidden=4) :
+    super(ODE_KS , self ).__init__()
+    self.net = nn.Sequential(
+      nn.Linear(128, 32 * 9),
+      nn.GELU(),
+      nn.Linear(32 * 9, 64 * 9),
+      nn.GELU(),
+      nn.Linear(64 * 9, 128)
+    )
+
+  def forward(self, t , y): 
+    # traj = solve_odefunc(self.net, torch.tensor([0, 0.1]), y).to(device)
+    res = self.net(y)
+    # traj = torchdiffeq.odeint(self.net, y, torch.tensor([0, 0.1]), method='rk4', rtol=1e-8)[-1] 
+    return res
+
 
 class ODE_Sin (nn.Module):
 
@@ -69,10 +112,11 @@ class ODE_Sin (nn.Module):
       nn.GELU(),
       nn.Linear(64 * 9, 1)
     )
+    
 
   def forward(self , t, y): 
     # because of how odeint works, t is necessary here!
-    traj = torchdiffeq.odeint(self.net, y, torch.tensor([0, 0.01]), method='rk4', rtol=1e-8) 
+    traj = torchdiffeq.odeint(self.net, y, torch.tensor([0, 0.1]), method='rk4', rtol=1e-8) 
     return traj
 
 

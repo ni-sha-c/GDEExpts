@@ -16,6 +16,7 @@ from examples.Lorenz_periodic import *
 from examples.Sin import *
 from examples.Tent_map import *
 from examples.Coupled_Brusselator import *
+from examples.Henon import *
 
 
 if __name__ == '__main__':
@@ -35,6 +36,7 @@ if __name__ == '__main__':
     # Set arguments (hyperparameters)
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
+                  'henon' : [henon, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
                   'lorenz_periodic' : [lorenz_periodic, 3],
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     parser.add_argument("--time_step", type=float, default=1e-2)
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=5e-4)
-    parser.add_argument("--num_epoch", type=int, default=20000) # 10000
+    parser.add_argument("--num_epoch", type=int, default=15000) # 10000
     parser.add_argument("--integration_time", type=int, default=200) #100
     parser.add_argument("--num_train", type=int, default=10000) #3000
     parser.add_argument("--num_test", type=int, default=8000)#3000
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument("--minibatch", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=500)
     parser.add_argument("--loss_type", default="Jacobian", choices=["Jacobian", "MSE", "Auto_corr"])
-    parser.add_argument("--reg_param", type=float, default=1e-5)
+    parser.add_argument("--reg_param", type=float, default=1e-6)
     parser.add_argument("--optim_name", default="AdamW", choices=["AdamW", "Adam", "RMSprop", "SGD"])
     parser.add_argument("--dyn_sys", default="lorenz", choices=DYNSYS_MAP.keys())
 
@@ -98,6 +100,7 @@ if __name__ == '__main__':
     whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
     training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
     longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    print("train", training_traj.shape)
 
     dataset = create_data(training_traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
 
@@ -158,8 +161,8 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
-    print("NODE LE: ", LE_NODE)
+    # LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+    # print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
@@ -169,6 +172,6 @@ if __name__ == '__main__':
     norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)
     print("Norm Difference: ", norm_difference)
 
-    # with open(str(timestamp)+'.txt', 'a') as f:
+    with open(str(timestamp)+'.txt', 'a') as f:
         entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
         json.dump(entry, f)
