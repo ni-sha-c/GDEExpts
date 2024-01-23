@@ -31,9 +31,9 @@ from examples.Tent_map import *
 if __name__ == '__main__':
 
     dt = 0.01
-    integration = 20
+    integration = 60
     len_integration = integration*int(1/dt)
-    tau = 30
+    tau = 100
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # init = torch.tensor([1., 1., -1.]).to(device)
@@ -122,22 +122,22 @@ if __name__ == '__main__':
 
     # Try removing first few 100s or until 400..?
 
-    xx = tau_x[400:1400]
+    xx = tau_x[20:500]
     # print("size", node_corr_list[:, 1, 400:1400].shape) 4, 1000
-    n_mean = np.mean(node_corr_list[:, 0, 400:1400], axis=0)
-    n_std = np.std(node_corr_list[:, 0, 400:1400], axis=0)
+    n_mean = np.nanmean(node_corr_list[:, 0, 20:500], axis=0)
+    n_std = np.nanstd(node_corr_list[:, 0, 20:500], axis=0)
 
-    nn_mean = np.mean(node_corr_list[:, 1, 400:1400], axis=0)
-    nn_std = np.std(node_corr_list[:, 1, 400:1400], axis=0)
+    nn_mean = np.mean(node_corr_list[:, 1, 20:500], axis=0)
+    nn_std = np.std(node_corr_list[:, 1, 20:500], axis=0)
 
-    nnn_mean = np.mean(node_corr_list[:, 2, 400:1400], axis=0)
-    nnn_std = np.std(node_corr_list[:, 2, 400:1400], axis=0)
+    nnn_mean = np.mean(node_corr_list[:, 2, 20:500], axis=0)
+    nnn_std = np.std(node_corr_list[:, 2, 20:500], axis=0)
 
-    nnnn_mean = np.mean(node_corr_list[:, 3, 400:1400], axis=0)
-    nnnn_std = np.std(node_corr_list[:, 3, 400:1400], axis=0)
+    nnnn_mean = np.mean(node_corr_list[:, 3, 20:500], axis=0)
+    nnnn_std = np.std(node_corr_list[:, 3, 20:500], axis=0)
 
-    rk_mean = np.mean(corr_list[:, 400:1400], axis=0)
-    rk_std = np.std(corr_list[:, 400:1400], axis=0)
+    rk_mean = np.mean(corr_list[:, 20:500], axis=0)
+    rk_std = np.std(corr_list[:, 20:500], axis=0)
     
 
     ax.plot(xx, n_mean, color=colors[0], marker='o', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='MSE_0')
