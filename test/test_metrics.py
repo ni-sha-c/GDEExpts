@@ -338,6 +338,8 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
     lyap_exp = [] #empty list to store the lengths of the orthogonal axes
 
     real_time = iters * time_step
+    if dyn_sys_name == "henon" or "baker":
+        assert time_step == 1
     t_eval_point = torch.linspace(0, time_step, 2)
     tran = 0
 
@@ -357,14 +359,17 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             #update x0
             x0 = true_traj[i].to(device).double()
             # cur_J = model(x0).clone().detach()
-            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
+            if dyn_sys_name =="henon" or "baker":
+                cur_J = F.jacobian(model, x0)
+            else:
+                cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
             #print(cur_J)
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
 
             # QR Decomposition for J
             Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q #new axes after iteration
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
@@ -374,13 +379,18 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
             #update x0
             x0 = true_traj[i].double()
-            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
+            if dyn_sys_name =="henon" or "baker":
+                cur_J = F.jacobian(dyn_sys_func, x0)
+            else:
+                cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]
+            #print(cur_J)
+         
             J = torch.matmul(cur_J, U)
 
             # QR Decomposition for J
             Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q.double() #new axes after iteration
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
@@ -430,7 +440,7 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
             # QR Decomposition for J
             Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().numpy()))
+            lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q #new axes after iteration
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
@@ -450,21 +460,26 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
             res = func(x0).squeeze()
             print(res.shape)
             x0.retain_grad()
-            # res.backward(v)
+
             cur_J = torch.zeros(res.shape[0], res.shape[0])
+            # do backward for each element 'j'
             for j in range(res.shape[0]):
-                res[j].backward(retain_graph=True)
-                cur_J[j] = x0.grad
-                # print("Retained Gradient:", cur_J[j])
-                x0.grad.zero_()
+                ele = torch.zeros(res.shape).to(device)
+                ele[j] = 1.0
+                res.backward(ele, retain_graph=True)
+                row_grad = x0.grad.data
+                cur_J[:, j] = row_grad.reshape(row_grad.shape[0], -1).T # Is this correct or is this cur_J[:, j]?
+                x0.grad.data.zero_()
 
             J = torch.matmul(cur_J.to(device).double(), U.to(device).double())
 
             # QR Decomposition for J
             Q, R = torch.linalg.qr(J)
 
-            lyap_exp.append(np.log(abs(R.diagonal()).clone().detach().cpu().numpy()))
+            lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q.double() #new axes after iteration
+        
+        lyap_exp = torch.stack(lyap_exp).detach().cpu().numpy()
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 

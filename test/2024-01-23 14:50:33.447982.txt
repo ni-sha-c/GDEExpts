@@ -1,0 +1,17 @@
+{
+  "time_step": 1.0,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 1000,
+  "integration_time": 20000,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 20000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "henon"
+}{"train loss": 7.1949075390875805e-06, "test loss": 7.038139414125979e-06, "max of solution": [0.42241367616040754, 1.4091221786403603, 0.5320229847082174], "max of weight": [0.7237346590047682, 0.07352862859310798, 0.039160023659366563], "multi step prediction error": 0}{"Nerual ODE LE": [0.4161307237594468, -1.7211917109837442], "rk4 LE": [0.4202701555158999, -1.6242429598418362], "norm difference": 0.09703708179475487}

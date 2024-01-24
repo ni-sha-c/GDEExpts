@@ -3,8 +3,10 @@ from test_metrics import *
 import datetime
 import sys
 import json
-import ray
-from ray import tune
+# import ray
+# from ray import tune
+import torch
+from matplotlib.pyplot import *
 
 sys.path.append('..')
 from src.NODE_solve import *
@@ -17,6 +19,7 @@ from examples.Sin import *
 from examples.Tent_map import *
 from examples.Coupled_Brusselator import *
 from examples.Henon import *
+from examples.Baker import *
 
 
 if __name__ == '__main__':
@@ -37,6 +40,7 @@ if __name__ == '__main__':
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
                   'henon' : [henon, 2],
+                  'baker' : [baker, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
                   'lorenz_periodic' : [lorenz_periodic, 3],
@@ -89,7 +93,8 @@ if __name__ == '__main__':
     else:
         x0 = torch.randn(dim)
         x_multi_0 = torch.randn(dim)
-    print("initial point:", x_multi_0)
+    
+    print("initial point:", x0, x_multi_0)
 
     # Initialize Model and Dataset Parameters
     criterion = torch.nn.MSELoss()
@@ -97,9 +102,39 @@ if __name__ == '__main__':
     print("real time: ", real_time)
 
     # Generate Training/Test/Multi-Step Prediction Data
-    whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
-    training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
-    longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    if args.dyn_sys == "henon" or "baker":
+        whole_traj = torch.zeros(args.integration_time*int(1/args.time_step), dim)
+        longer_traj = torch.zeros(args.iters, dim)
+        
+        for i in range(args.integration_time*int(1/args.time_step)):
+            next_x = dyn_sys_func(x0)
+            whole_traj[i] = next_x
+            x0 = next_x
+        
+        training_traj = whole_traj
+
+        for j in range(args.iters):
+            next_x = dyn_sys_func(x_multi_0)
+            longer_traj[j] = next_x
+            x_multi_0 = next_x
+
+        fig, (ax1, ax2) = subplots(2, figsize=(24,12))
+        ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        ax2.scatter(whole_traj[args.num_train:args.num_train+args.num_test, 0], whole_traj[args.num_train:args.num_train+args.num_test, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        ax1.xaxis.set_tick_params(labelsize=24)
+        ax1.yaxis.set_tick_params(labelsize=24)
+        ax2.xaxis.set_tick_params(labelsize=24)
+        ax2.yaxis.set_tick_params(labelsize=24)
+
+        path = '../plot/henon_phase.jpg'
+        fig.savefig(path, format='jpg', dpi=400)
+
+    else:
+
+        whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
+        training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
+        longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+    
     print("train", training_traj.shape)
 
     dataset = create_data(training_traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
@@ -111,14 +146,20 @@ if __name__ == '__main__':
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
 
     elif args.loss_type == "Auto_corr":
         pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
         
     else:
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
-
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
+        
+        fig, ax = subplots(figsize=(24,12))
+        ax.scatter(pred_test[:, 0], pred_test[:, 1], color=(0.25, 0.25, 0.25), s=4, alpha=0.8)
+        ax.xaxis.set_tick_params(labelsize=24)
+        ax.yaxis.set_tick_params(labelsize=24)
+        path = '../plot/henon_phase_predicted.jpg'
+        fig.savefig(path, format='jpg', dpi=400)
 
     # Maximum weights
     print("Saving Results...")
@@ -161,8 +202,8 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
     # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    # LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
-    # print("NODE LE: ", LE_NODE)
+    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+    print("NODE LE: ", LE_NODE)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)

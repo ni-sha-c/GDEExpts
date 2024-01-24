@@ -75,11 +75,30 @@ class ODE_henon(nn.Module):
             nn.GELU(),
             nn.Linear(64 * 14, 2)
         )
-        # self.t = torch.linspace(0, 0.01, 2)
+        self.t = torch.linspace(0, 0.01, 2)
 
-    def forward(self, t, y):
+    def forward(self, y):
         res = self.net(y)
         return res
+    
+class ODE_baker(nn.Module):
+    '''Define Neural Network that approximates differential equation system of Chaotic Lorenz'''
+
+    def __init__(self, y_dim=3, n_hidden=32*9):
+        super(ODE_baker, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 32 * 4),
+            nn.GELU(),
+            nn.Linear(32 * 4, 64 * 4),
+            nn.GELU(),
+            nn.Linear(64 * 4, 2)
+        )
+        # self.t = torch.linspace(0, 0.01, 2)
+
+    def forward(self, y):
+        res = self.net(y)
+        return res
+    
 
 
 class ODE_KS (nn.Module):
@@ -87,11 +106,11 @@ class ODE_KS (nn.Module):
   def __init__( self , y_dim=2 , n_hidden=4) :
     super(ODE_KS , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(128, 32 * 9),
+      nn.Linear(16, 32 * 9),
       nn.GELU(),
       nn.Linear(32 * 9, 64 * 9),
       nn.GELU(),
-      nn.Linear(64 * 9, 128)
+      nn.Linear(64 * 9, 16)
     )
 
   def forward(self, t , y): 

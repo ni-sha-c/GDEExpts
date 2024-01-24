@@ -3,8 +3,8 @@ from test_metrics import *
 import datetime
 import sys
 import json
-import ray
-from ray import tune
+# import ray
+# from ray import tune
 from test_KS import *
 import nolds
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     # Set arguments (hyperparameters)
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
-                  'KS': [run_KS, 128],
+                  'KS': [run_KS, 16],
                   'henon': [henon, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
@@ -80,16 +80,15 @@ if __name__ == '__main__':
 
     # Assign Initial Point of Orbit
     # L = 256 # n = [128, 256, 512, 700]
-    L = 128
+    L = 16 #128
     n = L-1 # num of internal node
-    T = 10 #1000 #100
+    T = 15 #1000 #100
     c = 0.4
 
     dx = L/(n+1)
     dt = args.time_step
     x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
-    u0 = 2.71828**(-(x-64)**2/512).to(device).double()
-    # torch.exp(-(x-64)**2/512)
+    u0 = 2.71828**(-(x-64)**2/512).to(device).double() # torch.exp(-(x-64)**2/512)
     # u_multi_0 = -0.5 + torch.rand(n+2)
 
     # Initialize Model and Dataset Parameters
@@ -194,9 +193,9 @@ if __name__ == '__main__':
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     # u_list = np.array(u_list.detach().cpu())
 
-    LE_rk4 = lyap_exps_ks(args.dyn_sys, dyn_sys_info, u_list, T*int(1/dt), u_list, dx, L, c, T, dt, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
-    print("rk4 LE: ", LE_rk4)
-    LE_rk4 = nolds.lyap_e(true_train[-1, :], emb_dim=19, matrix_dim=10, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
+    LE_rk4 = lyap_exps_ks(args.dyn_sys, dyn_sys_info, u_list, args.iters, u_list, dx, L, c, T, dt, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
+    print("rk4 LE: ", LE_rk4) #T*int(1/dt)
+    LE_rk4 = nolds.lyap_e(true_train[-1, :], emb_dim=10, matrix_dim=3, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||

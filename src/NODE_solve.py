@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader, Dataset
 import torch.autograd.functional as F
 import torch.optim as optim
 import torchdiffeq
-import ray
+# import ray
 from scipy import stats
 import numpy as np
 from matplotlib.pyplot import *
@@ -21,6 +21,7 @@ from examples.KS import *
 from examples.Tent_map import *
 from examples.Henon import *
 from examples.Coupled_Brusselator import *
+from examples.Baker import *
 
 
 def simulate(dyn_system, ti, tf, init_state, time_step):
@@ -37,6 +38,8 @@ def simulate(dyn_system, ti, tf, init_state, time_step):
     print("Finished Simulating")
 
     return traj
+
+
 
 
 
@@ -99,8 +102,9 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
 def define_dyn_sys(dyn_sys):
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
-                  'KS': [run_KS, 128],
+                  'KS': [run_KS, 16],
                   'henon' : [henon, 2],
+                  'baker' : [baker, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_periodic' : [lorenz_periodic, 3],
                   'lorenz' : [lorenz, 3],
@@ -120,6 +124,7 @@ def create_NODE(device, dyn_sys, n_nodes, n_hidden, T):
                   'tent_map' : ODE_Tent,
                   'KS': ODE_KS,
                   'henon': ODE_henon,
+                  'baker' : ODE_baker,
                   'brusselator' : ODE_Brusselator,
                   'lorenz_periodic' : ODE_Lorenz_periodic,
                   'lorenz' : ODE_Lorenz,
@@ -379,6 +384,10 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
         print("henon")
         for i in range(num_train):
             True_J[i] = Jacobian_Henon(X[i, :])
+    elif dyn_sys_name == "baker":
+        print("baker")
+        for i in range(num_train):
+            True_J[i] = F.jacobian(baker, X[i, :])
     elif dyn_sys_name == "KS":
         print("KS")
 
@@ -453,16 +462,24 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 
         elif minibatch == False:
 
-            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
+            if dyn_sys_name == "henon" or "baker":
+                y_pred = model(X).to(device)
+            else: 
+                y_pred = solve_odefunc(model, t_eval_point, X).to(device)
 
             optimizer.zero_grad()
             # MSE Output Loss
             MSE_loss = criterion(y_pred, Y)
-            jacrev = torch.func.jacrev(model, argnums=1)
 
             # Jacobian Diff Loss
-            compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
-            cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
+            if dyn_sys_name == "henon" or "baker":
+                jacrev = torch.func.jacrev(model)
+                compute_batch_jac = torch.vmap(jacrev)
+                cur_model_J = compute_batch_jac(X).to(device)
+            else:
+                jacrev = torch.func.jacrev(model, argnums=1)
+                compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
+                cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
             train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss, reg_param)
             train_loss.backward()
             optimizer.step()
@@ -476,7 +493,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
             print(i, MSE_loss.item(), train_loss.item())
 
         ##### test one_step #####
-        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
+        pred_test, test_loss = evaluate(dyn_sys_name, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
         test_loss_hist.append(test_loss)
 
         ##### test multi_step #####
@@ -534,11 +551,10 @@ def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 
         elif minibatch == False:
 
-            # if dyn_sys_name == "KS":
-            #     # print(model)
-            #     y_pred = model(t_eval_point, X).to(device)
-            # else:
-            y_pred = solve_odefunc(model, t_eval_point, X).to(device)
+            if (dyn_sys_name == "henon") or (dyn_sys_name == "baker"):
+                y_pred = model(X).to(device)
+            else: 
+                y_pred = solve_odefunc(model, t_eval_point, X).to(device)
 
             optimizer.zero_grad()
             loss = criterion(y_pred, Y)
@@ -555,7 +571,7 @@ def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
             print(i, train_loss)
 
         ##### test one_step #####
-        pred_test, test_loss = evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
+        pred_test, test_loss = evaluate(dyn_sys_name, model, time_step, X_test, Y_test, device, criterion, i, optim_name)
         test_loss_hist.append(test_loss)
 
         ##### test multi_step #####
@@ -746,11 +762,16 @@ def hyperparam_gridsearch_MSE(dyn_sys, model, device, dataset, true_t, optim_nam
 
 def evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, iter, optimizer_name):
 
+
   with torch.no_grad():
     model.eval()
 
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
-    y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)
+    # y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)
+    if (dyn_sys == "henon") or (dyn_sys == "baker"):
+        y_pred_test = model(X_test).to(device)
+    else: 
+        y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)
 
 
     # save predicted node feature for analysis

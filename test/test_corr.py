@@ -31,24 +31,25 @@ from examples.Tent_map import *
 if __name__ == '__main__':
 
     dt = 0.01
-    integration = 60
+    integration = 60#60
     len_integration = integration*int(1/dt)
-    tau = 100
+    tau = 80#100
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # init = torch.tensor([1., 1., -1.]).to(device)
     # init = torch.tensor([14.9440, 13.9801, 36.6756]).to(device)
-    initial_points = torch.rand(4, 3).to(device)
+    num_i = 10
+    initial_points = torch.rand(num_i, 3).to(device)
 
     # savefig
     fig, ax = subplots(figsize=(24,12))
     pdf_path = '../plot/corr_all_random_inits'+'.jpg'
     colors = cm.hsv(np.linspace(0, 1, 5))
-    node_corr_list = np.zeros((4, 4, tau*int(1/dt)))
-    corr_list = np.zeros((4, tau*int(1/dt)))
+    node_corr_list = np.zeros((num_i, 4, tau*int(1/dt)))
+    corr_list = np.zeros((num_i, tau*int(1/dt)))
 
     for idx, init in enumerate(initial_points):
-        print("----- init: ", init, " -----")
+        print("----- init: ", idx, init, " -----")
 
         trans = 0
         len_trans = trans*int(1/dt)
@@ -60,11 +61,10 @@ if __name__ == '__main__':
         print("finished simulating!")
 
         c = 0
-        tau_x = np.linspace(0, tau, tau*int(1/dt))
-        node_corr_list = np.zeros((4, 4, tau*int(1/dt)))
-        corr_list = np.zeros((4, tau*int(1/dt)))
+        # tau_x = np.linspace(0, tau, tau*int(1/dt))
+        tau_x = np.linspace(0, tau*int(1/dt), tau*int(1/dt))
 
-        for model_name in ["MSE_0", "MSE_5", "JAC_0", "JAC_5"]:
+        for model_name in ["MSE_0", "MSE_5", "JAC_0", "JAC_5"]: #["MSE_0", "MSE_5", "JAC_0", "JAC_5"]
             print(model_name)
 
             # simulate Neural ODE
@@ -104,40 +104,42 @@ if __name__ == '__main__':
 
 
         # Iterate over from 0 ... tau-1
-        for i in range(tau*int(1/dt)):
+        for j in range(tau*int(1/dt)):
 
             # # z(0 + Tau: t + Tau)
-            len_tau = i #i*int(1/dt)
+            len_tau = j #i*int(1/dt)
             tau_traj_z = np.array(traj[len_tau: len_tau+len_integration, 2])
             rk4_mean = np.mean(np.array(traj[:, 2]))
 
             # # compute corr between
             corr = np.correlate(tau_traj_z, base_traj_x)/len_integration - rk4_mean**2
-            corr_list[idx, i] = corr[0]
-            if i % 1000 == 0:
-                print(i, corr)
+            corr_list[idx, j] = corr[0]
+            if j % 1000 == 0:
+                print(j, corr)
+
 
     node_corr_list = np.array(node_corr_list)
     corr_list = np.array(corr_list)
 
     # Try removing first few 100s or until 400..?
+    print("node corr list", node_corr_list)
 
-    xx = tau_x[20:500]
+    xx = tau_x[0:100]
     # print("size", node_corr_list[:, 1, 400:1400].shape) 4, 1000
-    n_mean = np.nanmean(node_corr_list[:, 0, 20:500], axis=0)
-    n_std = np.nanstd(node_corr_list[:, 0, 20:500], axis=0)
+    n_mean = np.nanmean(node_corr_list[:, 0, 0:100], axis=0)
+    n_std = np.nanstd(node_corr_list[:, 0, 0:100], axis=0)
 
-    nn_mean = np.mean(node_corr_list[:, 1, 20:500], axis=0)
-    nn_std = np.std(node_corr_list[:, 1, 20:500], axis=0)
+    nn_mean = np.mean(node_corr_list[:, 1, 0:100], axis=0)
+    nn_std = np.std(node_corr_list[:, 1, 0:100], axis=0)
 
-    nnn_mean = np.mean(node_corr_list[:, 2, 20:500], axis=0)
-    nnn_std = np.std(node_corr_list[:, 2, 20:500], axis=0)
+    nnn_mean = np.mean(node_corr_list[:, 2, 0:100], axis=0)
+    nnn_std = np.std(node_corr_list[:, 2, 0:100], axis=0)
 
-    nnnn_mean = np.mean(node_corr_list[:, 3, 20:500], axis=0)
-    nnnn_std = np.std(node_corr_list[:, 3, 20:500], axis=0)
+    nnnn_mean = np.mean(node_corr_list[:, 3, 0:100], axis=0)
+    nnnn_std = np.std(node_corr_list[:, 3, 0:100], axis=0)
 
-    rk_mean = np.mean(corr_list[:, 20:500], axis=0)
-    rk_std = np.std(corr_list[:, 20:500], axis=0)
+    rk_mean = np.mean(corr_list[:, 0:100], axis=0)
+    rk_std = np.std(corr_list[:, 0:100], axis=0)
     
 
     ax.plot(xx, n_mean, color=colors[0], marker='o', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='MSE_0')

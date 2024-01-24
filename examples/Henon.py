@@ -1,7 +1,7 @@
 import torch
 # https://blbadger.github.io/henon-map.html
 
-def henon(t, X):
+def henon(X):
 
     a=1.4
     b=0.3
