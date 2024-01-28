@@ -455,29 +455,46 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
 
     model_path = "../test_result/expt_"+str(dyn_sys)+"/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
     pdf_path = '../plot/dist_'+str(dyn_sys)+str(model_name)+'_'+str(init_state.tolist())+'.jpg'
+    original_init_state = init_state
 
     # simulate true trajectory
     # Generate Training/Test/Multi-Step Prediction Data
     if (str(dyn_sys) == "henon") or (str(dyn_sys) == "baker") or (str(dyn_sys) == "tent_map"):
         
         true_data = torch.zeros(integration_time*int(1/time_step), dim)
+        node_data = torch.zeros(integration_time*int(1/time_step), dim)
         
         for i in range(integration_time*int(1/time_step)):
             next_x = dyn_sys_func(init_state)
             true_data[i] = next_x
             init_state = next_x
 
+        # Load the saved model
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+        print("Finished Loading model")
+        # simulate node trajectory
+        node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
+        for i in range(integration_time*int(1/time_step)):
+                next_x = model(original_init_state)
+                node_data[i] = next_x
+                original_init_state = next_x
+        node_data = node_data.detach().cpu()
+
     else:
-        true_data = simulate(dyn_system, 0, tf+1, init_state, time_step) # last 100 points are for testing
+        true_data = simulate(dyn_system, 0, tf+time_step, init_state, time_step) # last 100 points are for testing
     
-    # Load the saved model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    print("Finished Loading model")
-    # simulate node trajectory
-    node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
+        # Load the saved model
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+        print("Finished Loading model")
+        # simulate node trajectory
+        node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
+
 
     # plot
     
@@ -488,11 +505,11 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
     ax1.hist(true_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
     ax1.hist(node_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
 
-    ax.grid(True)
+    ax1.grid(True)
     # ax.set_title(r"Disbribution of X", fontsize=24)
-    ax.legend(['rk4', 'NODE'], fontsize=44)
-    ax.xaxis.set_tick_params(labelsize=44)
-    ax.yaxis.set_tick_params(labelsize=44)
+    ax1.legend(['rk4', 'NODE'], fontsize=44)
+    ax1.xaxis.set_tick_params(labelsize=44)
+    ax1.yaxis.set_tick_params(labelsize=44)
     tight_layout()
     savefig(pdf_path, format='jpg', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     return
@@ -513,8 +530,8 @@ if __name__ == '__main__':
     # init_state = torch.tensor([1.,1.,-1.])
     # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
     # init_state = torch.tensor([1., 0., 0.])
-    init_state= torch.randn(4)
-    plot_distribution("hyperchaos", [0, 300], "MSE", init_state, 0.001)
+    init_state= torch.tensor([0., 0.1, 0., 0.])
+    plot_distribution("hyperchaos", [0, 100], "JAC", init_state, 0.001)
 
     # MSE_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
     # MSE_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
