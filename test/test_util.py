@@ -12,6 +12,7 @@ from scipy.signal import argrelextrema
 from scipy.signal import correlate
 from scipy.stats import wasserstein_distance
 from test_metrics import *
+import seaborn as sns
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
@@ -452,33 +453,48 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
     dyn_system, dim = define_dyn_sys(dyn_sys)
     ti, tf = integration_time
 
-    model_path = "../test_result/expt_lorenz/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
-    pdf_path = '../plot/dist_'+str(model_name)+'_'+str(init_state.tolist())+'.pdf'
+    model_path = "../test_result/expt_"+str(dyn_sys)+"/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
+    pdf_path = '../plot/dist_'+str(dyn_sys)+str(model_name)+'_'+str(init_state.tolist())+'.jpg'
 
     # simulate true trajectory
-    true_data = simulate(dyn_system, ti, tf, init_state, time_step)
+    # Generate Training/Test/Multi-Step Prediction Data
+    if (str(dyn_sys) == "henon") or (str(dyn_sys) == "baker") or (str(dyn_sys) == "tent_map"):
+        
+        true_data = torch.zeros(integration_time*int(1/time_step), dim)
+        
+        for i in range(integration_time*int(1/time_step)):
+            next_x = dyn_sys_func(init_state)
+            true_data[i] = next_x
+            init_state = next_x
 
+    else:
+        true_data = simulate(dyn_system, 0, tf+1, init_state, time_step) # last 100 points are for testing
+    
     # Load the saved model
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = ODE_Lorenz().to(device)
+    model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
     model.load_state_dict(torch.load(model_path))
     model.eval()
     print("Finished Loading model")
     # simulate node trajectory
-    node_data = simulate(model, ti, tf, init_state.to(device), time_step).detach().cpu()
+    node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
 
     # plot
-    fig, ax = subplots(1, figsize=(12, 6)) #, sharey=True
-    ax.hist(true_data[:, 0], bins=100, density=True, alpha=0.5, color=(0.25, 0.25, 0.25)) #density=True, 
-    ax.hist(node_data[:, 0], bins=100, density=True, alpha=0.5, color="slateblue") #density=True, 
+    
+    fig, ax1 = subplots(1, figsize=(12,6)) #, sharey=True
+    sns.set_theme()
+    # ax1.histplot(true_data[:, 0], kde=True, stat="density")
+    # ax1.histplot(node_data[:, 0], kde=True)
+    ax1.hist(true_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
+    ax1.hist(node_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
 
     ax.grid(True)
     # ax.set_title(r"Disbribution of X", fontsize=24)
-    ax.legend(['rk4', 'NODE'], fontsize=36)
-    ax.xaxis.set_tick_params(labelsize=36)
-    ax.yaxis.set_tick_params(labelsize=36)
+    ax.legend(['rk4', 'NODE'], fontsize=44)
+    ax.xaxis.set_tick_params(labelsize=44)
+    ax.yaxis.set_tick_params(labelsize=44)
     tight_layout()
-    savefig(pdf_path, format='pdf', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    savefig(pdf_path, format='jpg', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     return
 
 
@@ -497,18 +513,19 @@ if __name__ == '__main__':
     # init_state = torch.tensor([1.,1.,-1.])
     # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
     # init_state = torch.tensor([1., 0., 0.])
-    # plot_distribution("lorenz", [0, 500], "JAC_300", init_state, 0.01)
+    init_state= torch.randn(4)
+    plot_distribution("hyperchaos", [0, 300], "MSE", init_state, 0.001)
 
-    MSE_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
-    MSE_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
-    J_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/training_loss.csv", delimiter=",", dtype=float)
-    J_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/test_loss.csv", delimiter=",", dtype=float)
-    MSE_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/training_loss.csv", delimiter=",", dtype=float)
-    MSE_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/test_loss.csv", delimiter=",", dtype=float)
-    J_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/training_loss.csv", delimiter=",", dtype=float)
-    J_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/test_loss.csv", delimiter=",", dtype=float)
+    # MSE_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
+    # MSE_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)
+    # J_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/training_loss.csv", delimiter=",", dtype=float)
+    # J_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_0/test_loss.csv", delimiter=",", dtype=float)
+    # MSE_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/training_loss.csv", delimiter=",", dtype=float)
+    # MSE_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_5/test_loss.csv", delimiter=",", dtype=float)
+    # J_train_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/training_loss.csv", delimiter=",", dtype=float)
+    # J_test_5 =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/JAC_5/test_loss.csv", delimiter=",", dtype=float)
     
-    plot_loss(MSE_train, MSE_test, J_train, J_test, MSE_train_5, MSE_test_5, J_train_5, J_test_5)
+    # plot_loss(MSE_train, MSE_test, J_train, J_test, MSE_train_5, MSE_test_5, J_train_5, J_test_5)
 
 
     #----- test plot_3d_space() -----#

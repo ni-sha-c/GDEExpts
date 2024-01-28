@@ -4,6 +4,7 @@ import datetime
 import sys
 import json
 # import ray
+import nolds
 # from ray import tune
 import torch
 from matplotlib.pyplot import *
@@ -20,6 +21,7 @@ from examples.Tent_map import *
 from examples.Coupled_Brusselator import *
 from examples.Henon import *
 from examples.Baker import *
+from examples.LV import *
 
 
 if __name__ == '__main__':
@@ -32,6 +34,7 @@ if __name__ == '__main__':
 
     # Set device
     torch.manual_seed(42)
+    torch.cuda.empty_cache()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
@@ -41,11 +44,15 @@ if __name__ == '__main__':
                   'tent_map' : [tent_map, 1],
                   'henon' : [henon, 2],
                   'baker' : [baker, 2],
+                  'lv': [lv, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
                   'lorenz_periodic' : [lorenz_periodic, 3],
                   'lorenz' : [lorenz, 3],
-                  'coupled_brusselator': [coupled_brusselator, 4]}
+                  'rossler' : [rossler, 3],
+                  'coupled_brusselator': [coupled_brusselator, 4],
+                  'hyperchaos': [hyperchaos, 4],
+                  'hyperchaos_hu': [hyperchaos_hu, 7]}
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--time_step", type=float, default=1e-2)
@@ -90,6 +97,10 @@ if __name__ == '__main__':
         # x_multi_0 = torch.tensor([1.9, 3.0, 2.1, 2.9])
         x0 = torch.randn(dim)
         x_multi_0 = torch.randn(dim)
+    elif str(args.dyn_sys) == "hyperchaos":
+        x0 = torch.randn(dim)
+        x_multi_0 = torch.randn(dim)
+        print("hy")
     else:
         x0 = torch.randn(dim)
         x_multi_0 = torch.randn(dim)
@@ -102,7 +113,8 @@ if __name__ == '__main__':
     print("real time: ", real_time)
 
     # Generate Training/Test/Multi-Step Prediction Data
-    if args.dyn_sys == "henon" or "baker":
+    if (str(args.dyn_sys) == "henon") or (str(args.dyn_sys) == "baker") or (str(args.dyn_sys) == "tent_map"):
+        
         whole_traj = torch.zeros(args.integration_time*int(1/args.time_step), dim)
         longer_traj = torch.zeros(args.iters, dim)
         
@@ -110,35 +122,64 @@ if __name__ == '__main__':
             next_x = dyn_sys_func(x0)
             whole_traj[i] = next_x
             x0 = next_x
-        
-        training_traj = whole_traj
+        training_traj = whole_traj.requires_grad_(True)
 
         for j in range(args.iters):
             next_x = dyn_sys_func(x_multi_0)
             longer_traj[j] = next_x
             x_multi_0 = next_x
 
-        fig, (ax1, ax2) = subplots(2, figsize=(24,12))
-        ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
-        ax2.scatter(whole_traj[args.num_train:args.num_train+args.num_test, 0], whole_traj[args.num_train:args.num_train+args.num_test, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
-        ax1.xaxis.set_tick_params(labelsize=24)
-        ax1.yaxis.set_tick_params(labelsize=24)
-        ax2.xaxis.set_tick_params(labelsize=24)
-        ax2.yaxis.set_tick_params(labelsize=24)
+        # if (str(args.dyn_sys) == "tent_map"):
+        #     fig, (ax1, ax2) = subplots(1, 2, figsize=(24,12))
 
-        path = '../plot/henon_phase.jpg'
-        fig.savefig(path, format='jpg', dpi=400)
+        #     ax1.scatter(whole_traj[0:10], whole_traj[1:11], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        #     ax2.scatter(whole_traj[0:args.num_train], whole_traj[1:args.num_train+1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        #     ax1.xaxis.set_tick_params(labelsize=24)
+        #     ax1.yaxis.set_tick_params(labelsize=24)
+        #     ax2.xaxis.set_tick_params(labelsize=24)
+        #     ax2.yaxis.set_tick_params(labelsize=24)
+
+        #     path = '../plot/tent_phase.jpg'
+        #     fig.savefig(path, format='jpg', dpi=400)
+
+        # elif (str(args.dyn_sys) == "baker"):
+        #     fig, (ax1, ax2) = subplots(1,2, figsize=(24,12))
+        #     ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        #     ax2.scatter(whole_traj[:100, 0], whole_traj[:100, 1], color=(0.25, 0.25, 0.25), s=20, alpha=0.7)
+        #     ax1.xaxis.set_tick_params(labelsize=24)
+        #     ax1.yaxis.set_tick_params(labelsize=24)
+        #     ax2.xaxis.set_tick_params(labelsize=24)
+        #     ax2.yaxis.set_tick_params(labelsize=24)
+
+        #     path = '../plot/baker_phase.jpg'
+        #     fig.savefig(path, format='jpg', dpi=400)
 
     else:
 
         whole_traj = simulate(dyn_sys_func, 0, args.integration_time+1, x0, args.time_step) # last 100 points are for testing
         training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
         longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
+
+        fig, (ax1, ax2) = subplots(1,2, figsize=(24,12))
+
+        ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
+        ax2.scatter(whole_traj[:args.num_train, 1], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
+        ax1.xaxis.set_tick_params(labelsize=44)
+        ax1.yaxis.set_tick_params(labelsize=44)
+        ax2.xaxis.set_tick_params(labelsize=44)
+        ax2.yaxis.set_tick_params(labelsize=44)
+        ax1.set_xlabel(r"$x_1$", fontsize=44)
+        ax1.set_ylabel(r"$x_4$", fontsize=44)
+        ax2.set_xlabel(r"$x_2$", fontsize=44)
+        ax2.set_ylabel(r"$x_4$", fontsize=44)
+        tight_layout()
+        path = '../plot/hyper_phase.jpg'
+        fig.savefig(path, format='jpg', dpi=400)
     
     print("train", training_traj.shape)
 
     dataset = create_data(training_traj, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
-
+    
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
 
@@ -154,12 +195,6 @@ if __name__ == '__main__':
     else:
         pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = MSE_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
         
-        fig, ax = subplots(figsize=(24,12))
-        ax.scatter(pred_test[:, 0], pred_test[:, 1], color=(0.25, 0.25, 0.25), s=4, alpha=0.8)
-        ax.xaxis.set_tick_params(labelsize=24)
-        ax.yaxis.set_tick_params(labelsize=24)
-        path = '../plot/henon_phase_predicted.jpg'
-        fig.savefig(path, format='jpg', dpi=400)
 
     # Maximum weights
     print("Saving Results...")
@@ -187,6 +222,9 @@ if __name__ == '__main__':
         entry = {'train loss': lh, 'test loss': tl, 'max of solution': ms, 'max of weight': mw, 'multi step prediction error': mse}
         json.dump(entry, f)
 
+    # Plot dist
+
+
 
     # Save Trained Model
     model_path = "../test_result/expt_"+str(args.dyn_sys)+"/"+args.optim_name+"/"+str(args.time_step)+'/'+'model.pt'
@@ -201,13 +239,37 @@ if __name__ == '__main__':
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"training_loss.csv", np.asarray(loss_hist.detach().cpu()), delimiter=",")
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
-    # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
-    LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
-    print("NODE LE: ", LE_NODE)
+    if str(args.dyn_sys) == "tent_map":
+        # def ddynamics(x, s):
+        #     if x < 1+s:
+        #         return 2/(1+s)                                      
+        #     return -2/(1-s)
+            
+        def lyap_exp_1d(x, T, NODE):
+            # x = 2*torch.rand(1)
+            le = 0
+            if NODE == True:
+                 for t in range(x.shape[0]):
+                    # x = dynamics(x, s)
+                    # le += torch.log(torch.tensor(abs(ddynamics(x[t], s))))
+                    le += torch.log(abs(F.jacobian(m, x[t].to(device).double())))
+            else:
+                for t in range(x.shape[0]):
+                    # x = dynamics(x, s)
+                    le += torch.log(abs(F.jacobian(tent_map, x[t].to(device))))
+            return le/T
+        
+        LE_NODE = lyap_exp_1d(longer_traj, args.iters, True)
+        LE_rk4 = lyap_exp_1d(longer_traj, args.iters, False)
+        print(LE_NODE, LE_rk4)
+    else:
+        # Compute Jacobian Matrix and Lyapunov Exponent of Neural ODE
+        LE_NODE = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+        print("NODE LE: ", LE_NODE)
 
-    # Compute Jacobian Matrix and Lyapunov Exponent of rk4
-    LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
-    print("rk4 LE: ", LE_rk4)
+        # Compute Jacobian Matrix and Lyapunov Exponent of rk4
+        LE_rk4 = lyap_exps(args.dyn_sys, dyn_sys_info, longer_traj, iters=args.iters, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
+        print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||
     norm_difference = torch.linalg.norm(LE_NODE - LE_rk4)

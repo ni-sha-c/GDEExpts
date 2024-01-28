@@ -62,6 +62,24 @@ class ODE_Lorenz(nn.Module):
     def forward(self, t, y):
         res = self.net(y)
         return res
+    
+class ODE_LV(nn.Module):
+    '''Define Neural Network that approximates differential equation system of Chaotic Lorenz'''
+
+    def __init__(self, y_dim=3, n_hidden=32*9):
+        super(ODE_LV, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 32 * 2),
+            nn.GELU(),
+            nn.Linear(32 * 2, 64 * 2),
+            nn.GELU(),
+            nn.Linear(64 * 2, 2)
+        )
+        # self.t = torch.linspace(0, 0.01, 2)
+
+    def forward(self, t, y):
+        res = self.net(y)
+        return res
 
 class ODE_henon(nn.Module):
     '''Define Neural Network that approximates differential equation system of Chaotic Lorenz'''
@@ -87,11 +105,13 @@ class ODE_baker(nn.Module):
     def __init__(self, y_dim=3, n_hidden=32*9):
         super(ODE_baker, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, 32 * 4),
+            nn.Linear(2, 32 * 14),
             nn.GELU(),
-            nn.Linear(32 * 4, 64 * 4),
+            nn.Linear(32 * 14, 64 * 14),
             nn.GELU(),
-            nn.Linear(64 * 4, 2)
+            nn.Linear(64 * 14, 64 * 14),
+            nn.GELU(),
+            nn.Linear(64 * 14, 2)
         )
         # self.t = torch.linspace(0, 0.01, 2)
 
@@ -145,18 +165,14 @@ class ODE_Tent (nn.Module):
   def __init__( self , y_dim=1 , n_hidden=4) :
     super(ODE_Tent , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, n_hidden),
-      nn.ReLU(),
-      nn.Linear(n_hidden, n_hidden),
-      nn.ReLU(),
-      nn.Linear(n_hidden, n_hidden),
-      nn.ReLU(),
-      nn.Linear(n_hidden, n_hidden),
-      nn.ReLU(),
-      nn.Linear(n_hidden, y_dim)
+      nn.Linear(1, 32 * 6),
+      nn.GELU(),
+      nn.Linear(32 * 6, 64 * 7),
+      nn.GELU(),
+      nn.Linear(64 * 7, 1)
     )
 
-  def forward(self , t, y): 
+  def forward(self , y): 
     return self.net(y)
 
 class ODE_Coupled_Brusselator (nn.Module):
@@ -164,11 +180,30 @@ class ODE_Coupled_Brusselator (nn.Module):
   def __init__( self , y_dim=2 , n_hidden=4) :
     super(ODE_Coupled_Brusselator , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(y_dim, 32 * 16),
+      nn.Linear(4, 32 * 5),
       nn.GELU(),
-      nn.Linear(32 * 16 , 64 * 16),
+      nn.Linear(32 * 5, 64 * 7),
       nn.GELU(),
-      nn.Linear(64 * 16, y_dim)
+      nn.Linear(64 * 7 , 64 * 7),
+      nn.GELU(),
+      nn.Linear(64 * 7, 4)
+    )
+
+  def forward(self , t, y): 
+    return self.net(y)
+  
+class ODE_hyperchaos_hu (nn.Module):
+  
+  def __init__( self , y_dim=2 , n_hidden=4) :
+    super(ODE_hyperchaos_hu , self ).__init__()
+    self.net = nn.Sequential(
+      nn.Linear(7, 32 * 8),
+      nn.GELU(),
+      nn.Linear(32 * 8 , 64 * 8),
+      nn.GELU(),
+      nn.Linear(64 * 8 , 64 * 8),
+      nn.GELU(),
+      nn.Linear(64 * 8, 7)
     )
 
   def forward(self , t, y): 

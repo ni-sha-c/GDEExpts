@@ -1,0 +1,17 @@
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 1,
+  "integration_time": 200,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "lv"
+}{"train loss": 1.1551520401553717e-05, "test loss": 2.3663085994917573e-06, "max of solution": [0.33702778318180454, 0.3470709273170399, 0.35712185066305224], "max of weight": [0.7063373061625343, 0.0888262576778335, 0.061688976845412274], "multi step prediction error": 0}

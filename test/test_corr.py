@@ -31,9 +31,9 @@ from examples.Tent_map import *
 if __name__ == '__main__':
 
     dt = 0.01
-    integration = 60#60
+    integration = 5#60
     len_integration = integration*int(1/dt)
-    tau = 80#100
+    tau = 50#100
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # init = torch.tensor([1., 1., -1.]).to(device)
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     fig, ax = subplots(figsize=(24,12))
     pdf_path = '../plot/corr_all_random_inits'+'.jpg'
     colors = cm.hsv(np.linspace(0, 1, 5))
-    node_corr_list = np.zeros((num_i, 4, tau*int(1/dt)))
+    node_corr_list = np.zeros((num_i, 2, tau*int(1/dt)))
     corr_list = np.zeros((num_i, tau*int(1/dt)))
 
     for idx, init in enumerate(initial_points):
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         # tau_x = np.linspace(0, tau, tau*int(1/dt))
         tau_x = np.linspace(0, tau*int(1/dt), tau*int(1/dt))
 
-        for model_name in ["MSE_0", "MSE_5", "JAC_0", "JAC_5"]: #["MSE_0", "MSE_5", "JAC_0", "JAC_5"]
+        for model_name in ["MSE_0", "JAC_0"]: #["MSE_0", "MSE_5", "JAC_0", "JAC_5"]
             print(model_name)
 
             # simulate Neural ODE
@@ -124,38 +124,38 @@ if __name__ == '__main__':
     # Try removing first few 100s or until 400..?
     print("node corr list", node_corr_list)
 
-    xx = tau_x[0:100]
+    xx = tau_x[0:2000]
     # print("size", node_corr_list[:, 1, 400:1400].shape) 4, 1000
-    n_mean = np.nanmean(node_corr_list[:, 0, 0:100], axis=0)
-    n_std = np.nanstd(node_corr_list[:, 0, 0:100], axis=0)
+    n_mean = np.nanmean(node_corr_list[:, 0, 0:2000], axis=0)
+    n_std = np.nanstd(node_corr_list[:, 0, 0:2000], axis=0)
 
-    nn_mean = np.mean(node_corr_list[:, 1, 0:100], axis=0)
-    nn_std = np.std(node_corr_list[:, 1, 0:100], axis=0)
+    nn_mean = np.mean(node_corr_list[:, 1, 0:2000], axis=0)
+    nn_std = np.std(node_corr_list[:, 1, 0:2000], axis=0)
 
-    nnn_mean = np.mean(node_corr_list[:, 2, 0:100], axis=0)
-    nnn_std = np.std(node_corr_list[:, 2, 0:100], axis=0)
+    # nnn_mean = np.mean(node_corr_list[:, 2, 0:100], axis=0)
+    # nnn_std = np.std(node_corr_list[:, 2, 0:100], axis=0)
 
-    nnnn_mean = np.mean(node_corr_list[:, 3, 0:100], axis=0)
-    nnnn_std = np.std(node_corr_list[:, 3, 0:100], axis=0)
+    # nnnn_mean = np.mean(node_corr_list[:, 3, 0:100], axis=0)
+    # nnnn_std = np.std(node_corr_list[:, 3, 0:100], axis=0)
 
-    rk_mean = np.mean(corr_list[:, 0:100], axis=0)
-    rk_std = np.std(corr_list[:, 0:100], axis=0)
+    rk_mean = np.mean(corr_list[:, 0:2000], axis=0)
+    rk_std = np.std(corr_list[:, 0:2000], axis=0)
     
 
-    ax.plot(xx, n_mean, color=colors[0], marker='o', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='MSE_0')
-    ax.fill_between(xx, n_mean - n_std, n_mean + n_std, color=colors[0], alpha=0.15)
+    ax.plot(xx, n_mean, color=colors[1], marker='o', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='MSE_0')
+    ax.fill_between(xx, n_mean - n_std, n_mean + n_std, color=colors[1], alpha=0.15)
 
-    ax.plot(xx, nn_mean, color=colors[1], marker='*', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='MSE_5')
-    ax.fill_between(xx, nn_mean - nn_std, nn_mean + nn_std, color=colors[1], alpha=0.15)
+    ax.plot(xx, rk_mean, color=colors[3], marker='>', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='rk4')
+    ax.fill_between(xx, rk_mean - rk_std, rk_mean + rk_std, color=colors[3], alpha=0.15)
 
-    ax.plot(xx, nnn_mean, color=colors[2], marker='s', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='JAC_0')
-    ax.fill_between(xx, nnn_mean - nnn_std, nnn_mean + nnn_std, color=colors[2], alpha=0.15)
+    ax.plot(xx, nn_mean, color=colors[0], marker='*', linewidth=7, markersize=35, markevery=50, alpha=0.8, label='JAC_0')
+    ax.fill_between(xx, nn_mean - nn_std, nn_mean + nn_std, color=colors[0], alpha=0.15)
 
-    ax.plot(xx, nnnn_mean, color=colors[3], marker='8', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='JAC_5')
-    ax.fill_between(xx, nnnn_mean - nnnn_std, nnnn_mean + nnnn_std, color=colors[3], alpha=0.15)
+    # ax.plot(xx, nnn_mean, color=colors[2], marker='s', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='JAC_0')
+    # ax.fill_between(xx, nnn_mean - nnn_std, nnn_mean + nnn_std, color=colors[2], alpha=0.15)
 
-    ax.plot(xx, rk_mean, color=colors[c], marker='>', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='rk4')
-    ax.fill_between(xx, rk_mean - rk_std, rk_mean + rk_std, color=colors[c], alpha=0.15)
+    # ax.plot(xx, nnnn_mean, color=colors[3], marker='8', linewidth=6, markersize=32, markevery=50, alpha=0.8, label='JAC_5')
+    # ax.fill_between(xx, nnnn_mean - nnnn_std, nnnn_mean + nnnn_std, color=colors[3], alpha=0.15)
 
     ax.grid(True)
     ax.set_xlabel(r"$\tau$", fontsize=44)

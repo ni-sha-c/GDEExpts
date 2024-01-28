@@ -1,0 +1,17 @@
+{
+  "time_step": 1.0,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 30000,
+  "integration_time": 50000,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "baker"
+}{"train loss": 0.0005768421688117087, "test loss": 0.0015370677694069132, "max of solution": [2.4132689905364844, 3.7971085030837886, 5.897886041180712], "max of weight": [0.782643702160916, 1.7936870311659323, 0.744822348809259, 0.16145505068236693], "multi step prediction error": 0}{"Nerual ODE LE": [0.6965578948272012, -0.9176942504285449], "rk4 LE": [0.6931471805599453, -0.6931471805599453], "norm difference": 0.22457297156689765}

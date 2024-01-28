@@ -27,6 +27,22 @@ def lorenz(t, u, rho=28.0):
 
     return du
 
+def rossler(t, X):
+    '''Parameter values picked from: The study of Lorenz and Rössler strange attractors by means
+of quantum theory by Bogdanov et al.
+    https://arxiv.org/ftp/arxiv/papers/1412/1412.2242.pdf
+    LE:  0.07062, 0.000048, -5.3937
+    '''
+    x, y, z = X
+    a =0.2
+    b =0.2
+    c =5.7
+    
+    dx = -(y + z)
+    dy = x + a * y
+    dz = b + z * (x - c)
+    return torch.stack([dx, dy, dz])
+
 def lorenz_jac(x):
     '''lorenz for creating jacobian matrix.
         x: torch.randn(1,3)

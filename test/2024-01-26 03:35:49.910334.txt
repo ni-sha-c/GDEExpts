@@ -1,0 +1,17 @@
+{
+  "time_step": 0.001,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 20000,
+  "integration_time": 200,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "Jacobian",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "hyperchaos"
+}{"train loss": 0.0056451760291647505, "test loss": 3.1998166760048575e-06, "max of solution": [0.49510195386699524, 0.4912680389471358, 0.4874994576558146], "max of weight": [1.0313834351789193, 5.281110354958321, 2.934235423267039], "multi step prediction error": 0.0}{"Nerual ODE LE": [2.1455095361393135, -0.4154106738019769, -5.620735670208335, -39.47537961101731], "rk4 LE": [1.909851967984646, -0.03682030156544153, -5.550589517689401, -39.32244384543681], "norm difference": 0.4766287763927749}

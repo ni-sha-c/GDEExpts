@@ -1,0 +1,22 @@
+NODE LE:  tensor([ 0.7831,  0.0083, -2.1220], dtype=torch.float64)
+rk4 LE:  tensor([ 0.0739,  0.0090, -5.4161], dtype=torch.float64)
+Norm Difference:  tensor(3.3696, dtype=torch.float64)
+
+
+{
+  "time_step": 0.01,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 15000,
+  "integration_time": 200,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "MSE",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "rossler"
+}{"train loss": 1.6909614259930095e-06, "test loss": 2.4359653828855044e-06, "max of solution": [0.33676469915442103, 0.3331656603740859, 0.329630929400059], "max of weight": [0.6381377977653914, 0.22828664916808336, 0.5196996494929551], "multi step prediction error": 0}{"Nerual ODE LE": [0.7831369570565464, 0.00828865131997377, -2.1220048377120624], "rk4 LE": [0.07393598556678696, 0.009023657900421433, -5.416118140181158], "norm difference": 3.3695918161849434}

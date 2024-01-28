@@ -82,13 +82,13 @@ if __name__ == '__main__':
     # L = 256 # n = [128, 256, 512, 700]
     L = 16 #128
     n = L-1 # num of internal node
-    T = 15 #1000 #100
+    T = 1000 #1000 #100
     c = 0.4
 
     dx = L/(n+1)
     dt = args.time_step
     x = torch.arange(0, L+dx, dx) # [0, 0+dx, ... 128] shape: L + 1
-    u0 = 2.71828**(-(x-64)**2/512).to(device).double() # torch.exp(-(x-64)**2/512)
+    u0 = 2.71828**(-(x-64)**2/512).to(device).double().requires_grad_(True) # torch.exp(-(x-64)**2/512)
     # u_multi_0 = -0.5 + torch.rand(n+2)
 
     # Initialize Model and Dataset Parameters

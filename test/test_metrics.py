@@ -338,7 +338,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
     lyap_exp = [] #empty list to store the lengths of the orthogonal axes
 
     real_time = iters * time_step
-    if dyn_sys_name == "henon" or "baker":
+    if (dyn_sys_name == "henon") or (dyn_sys_name == "baker"):
         assert time_step == 1
     t_eval_point = torch.linspace(0, time_step, 2)
     tran = 0
@@ -359,7 +359,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
             #update x0
             x0 = true_traj[i].to(device).double()
             # cur_J = model(x0).clone().detach()
-            if dyn_sys_name =="henon" or "baker":
+            if (dyn_sys_name =="henon") or (dyn_sys_name == "baker"):
                 cur_J = F.jacobian(model, x0)
             else:
                 cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
@@ -379,7 +379,7 @@ def lyap_exps(dyn_sys, dyn_sys_info, true_traj, iters, time_step, optim_name, me
 
             #update x0
             x0 = true_traj[i].double()
-            if dyn_sys_name =="henon" or "baker":
+            if (dyn_sys_name =="henon") or (dyn_sys_name =="baker"):
                 cur_J = F.jacobian(dyn_sys_func, x0)
             else:
                 cur_J = F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_func, x, t_eval_point, method=method), x0)[1]

@@ -22,6 +22,7 @@ from examples.Tent_map import *
 from examples.Henon import *
 from examples.Coupled_Brusselator import *
 from examples.Baker import *
+from examples.LV import *
 
 
 def simulate(dyn_system, ti, tf, init_state, time_step):
@@ -105,10 +106,14 @@ def define_dyn_sys(dyn_sys):
                   'KS': [run_KS, 16],
                   'henon' : [henon, 2],
                   'baker' : [baker, 2],
+                  'lv' : [lv, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_periodic' : [lorenz_periodic, 3],
                   'lorenz' : [lorenz, 3],
-                  'coupled_brusselator': [coupled_brusselator, 4]}
+                  'rossler' : [rossler, 3],
+                  'coupled_brusselator': [coupled_brusselator, 4],
+                  'hyperchaos': [hyperchaos, 4],
+                  'hyperchaos_hu': [hyperchaos_hu, 7]}
     dyn_sys_info = DYNSYS_MAP[dyn_sys]
     dyn_sys_func, dim = dyn_sys_info
 
@@ -125,10 +130,14 @@ def create_NODE(device, dyn_sys, n_nodes, n_hidden, T):
                   'KS': ODE_KS,
                   'henon': ODE_henon,
                   'baker' : ODE_baker,
+                  'lv': ODE_LV,
                   'brusselator' : ODE_Brusselator,
                   'lorenz_periodic' : ODE_Lorenz_periodic,
                   'lorenz' : ODE_Lorenz,
-                  'coupled_brusselator': ODE_Coupled_Brusselator}
+                  'rossler' : ODE_Lorenz,
+                  'coupled_brusselator': ODE_Coupled_Brusselator,
+                  'hyperchaos': ODE_Coupled_Brusselator,
+                  'hyperchaos_hu': ODE_hyperchaos_hu}
     ODEFunc = DYNSYS_NN_MAP[dyn_sys]
     neural_func = ODEFunc(y_dim=n_nodes, n_hidden=n_hidden).to(device)
     # node = ODEBlock(T=T, odefunc=neural_func, method='rk4', atol=1e-9, rtol=1e-9, adjoint=False).to(device)
@@ -272,6 +281,17 @@ def Jacobian_Henon(X):
 
     return torch.stack([torch.tensor([- 2*a*x, 1]), torch.tensor([b, 0])])
 
+def Jacobian_Hyperchaos(X):
+    a= 35
+    b= 10
+    c= 1
+    d= 17
+
+    x1, x2, x3, x4 = X
+
+    # return torch.stack([torch.tensor([-a, a, 0, 0]), torch.tensor([b, b, 0, 0]), torch.tensor([0, 0, -c, c]), torch.tensor([0, 0, 0, -d])])
+    return torch.stack([torch.tensor([-a, a+x3*x4, x2*x4, x2*x3]), torch.tensor([b-x3*x4, b, -x1*x4, -x1*x3]), torch.tensor([x2*x4, x1*x4, -c, x1*x2]), torch.tensor([x2*x3, x1*x3, x1*x2, -d])])
+
 
 # ------------- #
 # Training Loop #
@@ -388,44 +408,54 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
         print("baker")
         for i in range(num_train):
             True_J[i] = F.jacobian(baker, X[i, :])
+    elif dyn_sys_name == "rossler":
+        print("rossler")
+        for i in range(num_train):
+            # F.jacobian(lambda x: torchdiffeq.odeint(dyn_sys_f, x, t_eval_point, method="rk4"), x, vectorize=True)[1]
+            True_J[i] = F.jacobian(lambda x: rossler(t_eval_point, x), X[i, :], vectorize=True)
+    elif dyn_sys_name == "hyperchaos":
+        print("hyperchaos")
+        for i in range(num_train):
+            True_J[i] = F.jacobian(lambda x: hyperchaos(t_eval_point, x), X[i, :], vectorize=True)
+            # True_J[i] = Jacobian_Hyperchaos(X[i,:])
+
+    elif dyn_sys_name == "hyperchaos_hu":
+        print("hyperchaos_hu")
+        for i in range(num_train):
+            True_J[i] = F.jacobian(lambda x: hyperchaos_hu(t_eval_point, x), X[i, :], vectorize=True)
+    elif dyn_sys_name == "tent_map":
+        print("tent_map")
+        for i in range(num_train):
+            # True_J[i] = F.jacobian(tent_map, X[i, :].squeeze())
+            c = X[i,:].requires_grad_(True)
+            t = tent_map(c)
+            r = torch.autograd.grad(t, c)
+            True_J[i] = r[0] #, create_graph=True
+            print(True_J[i])
     elif dyn_sys_name == "KS":
         print("KS")
-
-        L = 128
-        n = L-1 # num of internal node
-        T = 20 #1000
-        c = 0.4
-        dx = 1 # 0.25
-        dt = 0.25
-        eps=1e-13
-        dim = X.shape[1]
-        jac_rk4_fd = torch.zeros(dim,dim).double()
-        True_J = True_J.double()
-
         for i in range(num_train):
-            # True_J[i] = F.jacobian(lambda x: run_KS(x, c, dx, dt, T, False), X[i, :])
-            print("train", i)
-            x = X[i, :]
-            
-            # Finite Differentiation using Central Difference Approximation
-            for j in range(dim):
-                x_plus = x.clone()
-                x_minus = x.clone()
+            x0 = X[i, :]
+            # L = 16
+            dx = 1 # 0.25
+            dt = 0.25
+            c = 0.4
 
-                # create perturbed input
-                x_plus[j] = x_plus[j] + eps
-                x_minus[j] = x_minus[j] - eps
+            func = lambda x: run_KS(x, c, dx, dt, dt*2, False, device)[1]
+            res = func(x0).squeeze()
+            # print(res.shape)
+            x0.retain_grad()
 
-                # create model output
-                m_plus = run_KS(x_plus, c, dx, dt, T, False, device)[:X.shape[0]]
-                #print("mp", m_plus)
-                m_minus = run_KS(x_minus, c, dx, dt, T, False, device)[:X.shape[0]]
-
-                # compute central diff
-                diff = m_plus.clone().detach() - m_minus.clone().detach()
-                final = diff/2/eps
-                jac_rk4_fd[:, j] = final
-            True_J[i] = jac_rk4_fd
+            cur_J = torch.zeros(res.shape[0], res.shape[0])
+            # do backward for each element 'j'
+            for j in range(res.shape[0]):
+                ele = torch.zeros(res.shape).to(device)
+                ele[j] = 1.0
+                res.backward(ele, retain_graph=True)
+                row_grad = x0.grad.data
+                cur_J[:, j] = row_grad.reshape(row_grad.shape[0], -1).T # Is this correct or is this cur_J[:, j]?
+                x0.grad.data.zero_()
+            True_J[i] = cur_J
 
     print(True_J.shape)
     print("Finished Computing True Jacobian")
@@ -462,7 +492,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 
         elif minibatch == False:
 
-            if dyn_sys_name == "henon" or "baker":
+            if (dyn_sys_name == "henon") or (dyn_sys_name == "baker") or (dyn_sys_name == "tent_map"):
                 y_pred = model(X).to(device)
             else: 
                 y_pred = solve_odefunc(model, t_eval_point, X).to(device)
@@ -472,7 +502,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
             MSE_loss = criterion(y_pred, Y)
 
             # Jacobian Diff Loss
-            if dyn_sys_name == "henon" or "baker":
+            if (dyn_sys_name == "henon") or (dyn_sys_name == "baker") or (dyn_sys_name == "tent_map"):
                 jacrev = torch.func.jacrev(model)
                 compute_batch_jac = torch.vmap(jacrev)
                 cur_model_J = compute_batch_jac(X).to(device)
@@ -551,7 +581,7 @@ def MSE_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
 
         elif minibatch == False:
 
-            if (dyn_sys_name == "henon") or (dyn_sys_name == "baker"):
+            if (dyn_sys_name == "henon") or (dyn_sys_name == "baker") or (dyn_sys_name == "tent_map"):
                 y_pred = model(X).to(device)
             else: 
                 y_pred = solve_odefunc(model, t_eval_point, X).to(device)
@@ -768,7 +798,7 @@ def evaluate(dyn_sys, model, time_step, X_test, Y_test, device, criterion, iter,
 
     t_eval_point = torch.linspace(0, time_step, 2).to(device).double()
     # y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)
-    if (dyn_sys == "henon") or (dyn_sys == "baker"):
+    if (dyn_sys == "henon") or (dyn_sys == "baker") or (dyn_sys == "tent_map"):
         y_pred_test = model(X_test).to(device)
     else: 
         y_pred_test = solve_odefunc(model, t_eval_point, X_test).to(device)

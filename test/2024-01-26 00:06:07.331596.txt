@@ -1,0 +1,17 @@
+{
+  "time_step": 1.0,
+  "lr": 0.0005,
+  "weight_decay": 0.0005,
+  "num_epoch": 20000,
+  "integration_time": 20000,
+  "num_train": 10000,
+  "num_test": 8000,
+  "num_trans": 0,
+  "iters": 50000,
+  "minibatch": false,
+  "batch_size": 500,
+  "loss_type": "Jacobian",
+  "reg_param": 1e-06,
+  "optim_name": "AdamW",
+  "dyn_sys": "tent_map"
+}{"train loss": 0.06197833776772211, "test loss": 9.791610992822508e-05, "max of solution": [1.6379863896163942, 1.7439298623834816, 1.703748323683834], "max of weight": [0.9988989975408143, 1.8347005993900338, 0.05893822781750991], "multi step prediction error": 0.0}{"Nerual ODE LE": [[0.6373526375523235]], "rk4 LE": [[0.2985449731349945]], "norm difference": 0.338807664417329}
