@@ -62,12 +62,6 @@ if __name__ == '__main__':
     dyn_sys_func, dim = define_dyn_sys(args.dyn_sys)
     dyn_sys_info = [dyn_sys_func, args.dyn_sys, dim]
     
-    if args.dyn_sys == "lorenz":
-        rho = 28.0
-    elif args.dyn_sys == "lorenz_periodic":
-        rho = 350.
-    else:
-        rho = 0.8
     print("args: ", args)
     print("dyn_sys_func: ", dyn_sys_func)
 
@@ -82,7 +76,7 @@ if __name__ == '__main__':
     # L = 256 # n = [128, 256, 512, 700]
     L = 16 #128
     n = L-1 # num of internal node
-    T = 1000 #1000 #100
+    T = 500 #1000 #100
     c = 0.4
 
     dx = L/(n+1)
@@ -124,7 +118,7 @@ if __name__ == '__main__':
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, 0, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
 
     elif args.loss_type == "Auto_corr":
         pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)

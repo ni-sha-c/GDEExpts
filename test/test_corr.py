@@ -31,14 +31,14 @@ from examples.Tent_map import *
 if __name__ == '__main__':
 
     dt = 0.01
-    integration = 5#60
+    integration = 2#60
     len_integration = integration*int(1/dt)
     tau = 50#100
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # init = torch.tensor([1., 1., -1.]).to(device)
     # init = torch.tensor([14.9440, 13.9801, 36.6756]).to(device)
-    num_i = 10
+    num_i = 2
     initial_points = torch.rand(num_i, 3).to(device)
 
     # savefig
@@ -81,9 +81,9 @@ if __name__ == '__main__':
             print("d", data[:10])
 
             # x(0 : t)
+            mean = np.mean(np.array(data[:, 2]))
             base_traj_x = np.array(traj[:len_integration, 2])
             node_base_traj_x = np.array(data[:len_integration, 2])
-            mean = np.mean(np.array(data[:, 2]))
         
             # Iterate over from 0 ... tau-1
             for i in range(tau*int(1/dt)):
@@ -93,9 +93,11 @@ if __name__ == '__main__':
                 tau_traj_z = np.array(data[len_tau: len_tau+len_integration, 2])
 
                 # # compute corr between
-                node_corr = np.correlate(tau_traj_z, node_base_traj_x)/len_integration - mean**2
+                print("0", np.mean(tau_traj_z))
+
+                node_corr = np.mean(tau_traj_z) * np.mean(node_base_traj_x)/(tau*int(1/dt))  - mean**2
                 print("node_corr", node_corr)
-                node_corr_list[idx, c, i] = node_corr[0]
+                node_corr_list[idx, c, i] = np.abs(node_corr)
                 if i % 1000 ==0:
                     print(i, node_corr)
 
@@ -108,12 +110,12 @@ if __name__ == '__main__':
 
             # # z(0 + Tau: t + Tau)
             len_tau = j #i*int(1/dt)
-            tau_traj_z = np.array(traj[len_tau: len_tau+len_integration, 2])
             rk4_mean = np.mean(np.array(traj[:, 2]))
+            tau_traj_z = np.array(traj[len_tau: len_tau+len_integration, 2])
 
             # # compute corr between
-            corr = np.correlate(tau_traj_z, base_traj_x)/len_integration - rk4_mean**2
-            corr_list[idx, j] = corr[0]
+            corr = np.mean(tau_traj_z) *np.mean(base_traj_x)/(tau*int(1/dt))- rk4_mean**2
+            corr_list[idx, j] = np.abs(corr)
             if j % 1000 == 0:
                 print(j, corr)
 

@@ -13,6 +13,7 @@ from scipy.signal import correlate
 from scipy.stats import wasserstein_distance
 from test_metrics import *
 import seaborn as sns
+from statsmodels.graphics.tsaplots import plot_acf
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
@@ -448,23 +449,23 @@ def plot_loss_MSE(MSE_train, MSE_test, model_name):
     return
 
 
-def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_step):
+def plot_distribution(dyn_sys, dyn_sys_func, integration_time, model_name, init_state, time_step, model_path, neural_model_path):
     # call h(x) of dynamical system of interest
     dyn_system, dim = define_dyn_sys(dyn_sys)
     ti, tf = integration_time
 
-    model_path = "../test_result/expt_"+str(dyn_sys)+"/AdamW/"+str(time_step)+'/'+str(model_name)+'/model.pt'
-    pdf_path = '../plot/dist_'+str(dyn_sys)+str(model_name)+'_'+str(init_state.tolist())+'.jpg'
-    original_init_state = init_state
-
+    pdf_path = '../plot/dist_'+str(dyn_sys)+'all'+'_'+str(init_state.tolist())+'.jpg'
+    is_copy1 = init_state
+    is_copy2 = init_state
     # simulate true trajectory
     # Generate Training/Test/Multi-Step Prediction Data
     if (str(dyn_sys) == "henon") or (str(dyn_sys) == "baker") or (str(dyn_sys) == "tent_map"):
         
-        true_data = torch.zeros(integration_time*int(1/time_step), dim)
-        node_data = torch.zeros(integration_time*int(1/time_step), dim)
+        true_data = torch.zeros(tf*int(1/time_step), dim)
+        node_data = torch.zeros(tf*int(1/time_step), dim)
+        jac_data = torch.zeros(tf*int(1/time_step), dim)
         
-        for i in range(integration_time*int(1/time_step)):
+        for i in range(tf*int(1/time_step)):
             next_x = dyn_sys_func(init_state)
             true_data[i] = next_x
             init_state = next_x
@@ -474,42 +475,121 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
         model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
         model.load_state_dict(torch.load(model_path))
         model.eval()
+
+        m = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        m.load_state_dict(torch.load(neural_model_path))
+        m.eval()
         print("Finished Loading model")
         # simulate node trajectory
-        node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
-        for i in range(integration_time*int(1/time_step)):
-                next_x = model(original_init_state)
-                node_data[i] = next_x
-                original_init_state = next_x
-        node_data = node_data.detach().cpu()
+
+        for i in range(tf*int(1/time_step)):
+            next_x = model(is_copy1.to(device).double())
+            node_data[i] = next_x
+            is_copy1 = next_x
+
+        for i in range(tf*int(1/time_step)):
+            nx = m(is_copy2.to(device).double())
+            jac_data[i] = nx
+            is_copy2 = nx
 
     else:
-        true_data = simulate(dyn_system, 0, tf+time_step, init_state, time_step) # last 100 points are for testing
+        true_data = simulate(dyn_system, 0, tf+1, init_state, time_step) # last 100 points are for testing
     
         # Load the saved model
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
         model.load_state_dict(torch.load(model_path))
         model.eval()
+
+        m = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        m.load_state_dict(torch.load(neural_model_path))
+        m.eval()
         print("Finished Loading model")
         # simulate node trajectory
-        node_data = simulate(model, ti, tf, init_state.to(device).double(), time_step).detach().cpu()
+        node_data = simulate(model, 0, tf+1, init_state.to(device).double(), time_step).detach().cpu()
+        jac_data = simulate(m, 0, tf+1, init_state.to(device).double(), time_step).detach().cpu()
+
+        fig, (ax1, ax2, ax3) = subplots(1,3, figsize=(24,14))
+
+        ax2.scatter(node_data[:10000, 0], node_data[:10000, 2], color="turquoise", s=20, alpha=0.8)
+        ax1.scatter(true_data[:10000, 0], true_data[:10000, 2], color="salmon", s=20, alpha=0.8)
+        ax3.scatter(jac_data[:10000, 0], jac_data[:10000, 2], color="slateblue", s=20, alpha=0.8)
+        
+        ax1.xaxis.set_tick_params(labelsize=44)
+        ax1.yaxis.set_tick_params(labelsize=44)
+        ax2.xaxis.set_tick_params(labelsize=44)
+        ax2.yaxis.set_tick_params(labelsize=44)
+        ax3.xaxis.set_tick_params(labelsize=44)
+        ax3.yaxis.set_tick_params(labelsize=44)
+        # ax1.set_xlabel(r"$x_1$", fontsize=44)
+        # ax1.set_ylabel(r"$x_4$", fontsize=44)
+        # ax2.set_xlabel(r"$x_2$", fontsize=44)
+        # ax2.set_ylabel(r"$x_4$", fontsize=44)
+        # ax3.set_xlabel(r"$x_2$", fontsize=44)
+        # ax3.set_ylabel(r"$x_4$", fontsize=44)
+        tight_layout()
+        path = '../plot/'+str(dyn_sys)+'_all'+'.jpg'
+        fig.savefig(path, format='jpg', dpi=400)
+
+    print(true_data[:10], true_data[:-10])
+    print("mid", true_data[100])
+    print(node_data[:10], node_data[:-10])
+    print(jac_data[:10], jac_data[:-10])
 
 
     # plot
-    
-    fig, ax1 = subplots(1, figsize=(12,6)) #, sharey=True
+
+    fig, ax1 = subplots(1,figsize=(16,8)) #, sharey=True
     sns.set_theme()
     # ax1.histplot(true_data[:, 0], kde=True, stat="density")
-    # ax1.histplot(node_data[:, 0], kde=True)
-    ax1.hist(true_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
-    ax1.hist(node_data[:, 0], bins=100, density=True, alpha=0.5) #density=True, 
+    # ax1.histplot(node_data[:, 0], kde=True, stat="density")
+    # ax1.hist(true_data[:1000, 3], bins=100, alpha=0.7, color=[0.25, 0.25, 0.25]) #density=True, 
+    # ax2.hist(node_data[:1000, 3], bins=100, alpha=0.7, color="turquoise") #density=True, 
+    # ax3.hist(jac_data[:1000, 3], bins=100, alpha=0.7, color="turquoise") #density=True, 
+
+
+    # tent_map
+    # ax1.hist(true_data[:100, 0], bins=50, alpha=0.5, color="salmon") #density=True, 
+    # ax1.hist(node_data[:100, 0].detach().cpu(), bins=50, alpha=0.5, color="turquoise") #density=True, 
+    # ax1.hist(jac_data[:100, 0].detach().cpu(), bins=50, alpha=0.5, color="slateblue") #density=True,
+
+
+    # baker
+    # ax1.hist(true_data[:80, 1], bins=50, alpha=0.5, color="salmon") #density=True, 
+    # ax1.hist(node_data[:80, 1].detach().cpu(), bins=50, alpha=0.5, color="turquoise") #density=True, 
+    # ax1.hist(jac_data[:80, 1].detach().cpu(), bins=50, alpha=0.5, color="slateblue") #density=True,
+
+
+    # lorenz
+    # ax1.hist(true_data[:2000, 2], bins=50, alpha=0.5, color="salmon") #density=True, 
+    # ax1.hist(node_data[:2000, 2], bins=50, alpha=0.5, color="turquoise") #density=True, 
+    # ax1.hist(jac_data[:2000, 2], bins=50, alpha=0.5, color="slateblue") #density=True, 
+
+
+    # # rossler
+    ax1.hist(true_data[:2000, 2], bins=50, alpha=0.5, range=[0.02, 0.05], color="salmon") #density=True, 
+    ax1.hist(node_data[:2000, 2], bins=50, alpha=0.5, range=[0.02, 0.05], color="turquoise") #density=True, 
+    ax1.hist(jac_data[:2000, 2], bins=50, alpha=0.5, range=[0.02, 0.05], color="slateblue") #density=True, 
+
+    # # hyperchaos range=[-15, 5], 
+    # print(true_data[100:110])
+    # ax1.hist(np.log(true_data[:2000, 0]), bins=100, alpha=0.5, range=[-400, 65], density=True, color="salmon") #density=True, 
+    # ax1.hist(np.log(node_data[:2000, 0]), bins=100, alpha=0.5, range=[-400, 65], density=True, color="turquoise") #density=True, 
+    # ax1.hist(np.log(jac_data[:2000, 0]), bins=100, alpha=0.5, range=[-400, 65], density=True, color="slateblue") #density=True, 
+
 
     ax1.grid(True)
-    # ax.set_title(r"Disbribution of X", fontsize=24)
-    ax1.legend(['rk4', 'NODE'], fontsize=44)
-    ax1.xaxis.set_tick_params(labelsize=44)
-    ax1.yaxis.set_tick_params(labelsize=44)
+    ax1.legend(['rk4', 'MSE', 'JAC'], fontsize=30)
+    ax1.xaxis.set_tick_params(labelsize=34)
+    ax1.yaxis.set_tick_params(labelsize=34)
+    # ax2.grid(True)
+    # ax2.legend(['MSE'], fontsize=30)
+    # ax2.xaxis.set_tick_params(labelsize=34)
+    # ax2.yaxis.set_tick_params(labelsize=34)
+    # ax3.grid(True)
+    # ax3.legend(['JAC'], fontsize=30)
+    # ax3.xaxis.set_tick_params(labelsize=34)
+    # ax3.yaxis.set_tick_params(labelsize=34)
     tight_layout()
     savefig(pdf_path, format='jpg', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
     return
@@ -520,6 +600,24 @@ def plot_distribution(dyn_sys, integration_time, model_name, init_state, time_st
 
 if __name__ == '__main__':
     
+    init_state=torch.tensor([0.1, 0.1, 0.1])
+    dyn_system=rossler
+    time_step=0.01
+    tau = 10
+    true_data = simulate(dyn_system, 0, 5, init_state, time_step) # last 100 points are for testing
+    plot_data = np.zeros((true_data.shape[0]-tau, 1))
+
+    for i in range(true_data.shape[0] - tau):
+        plot_data[i] = np.correlate(true_data[0:tau,0], true_data[i:i+tau,0])/true_data.shape[0] - np.mean(true_data[:,0])**2
+
+    figure(figsize=(20,10))
+    plot(plot_data)
+    # plot_acf(true_data[:, 0], lags=10,use_vlines=False) 
+    # acorr(true_data[:,0], usevlines=False, normed=True, maxlags=50, lw=2)
+
+    savefig("../plot/autocorr.jpg", format='jpg', dpi=400, bbox_inches ='tight', pad_inches = 0.1)
+    
+    
     '''device = "cuda" if torch.cuda.is_available() else "cpu"
     plot_3d_trajectory("lorenz", [0,200], "JAC_0", 0.01, torch.tensor([1.0, 1.0, -1.0]).to(device), device, comparison=True)'''
 
@@ -527,11 +625,15 @@ if __name__ == '__main__':
     loss_MSE = np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/loss_100_MSE.csv", delimiter=",", dtype=float)
     print(np.mean(loss_JAC), np.mean(loss_MSE))''' # 0.0467645374708809 0.8517619795713108
     
-    # init_state = torch.tensor([1.,1.,-1.])
+    '''# init_state = torch.tensor([1.,1.,-1.])
     # init_state = torch.tensor([-8.6445e-01,-1.19299e+00,1.4918e+01])
-    # init_state = torch.tensor([1., 0., 0.])
-    init_state= torch.tensor([0., 0.1, 0., 0.])
-    plot_distribution("hyperchaos", [0, 100], "JAC", init_state, 0.001)
+    init_state = torch.tensor([0.1, 0.1, 0.1])
+    # init_state= torch.tensor([0.1033, 0.1211, 0.0990, 0.0844])
+    dyn_sys= "rossler"
+    time_step= 0.01
+    model_path = "../test_result/expt_"+str(dyn_sys)+"/AdamW/"+str(time_step)+'/'+'Rossler_MSE/model.pt'
+    neural_model_path = "../test_result/expt_"+str(dyn_sys)+"/AdamW/"+str(time_step)+'/'+'Rossler_JAC/model.pt'
+    plot_distribution(dyn_sys, baker, [0, 20], "MSE", init_state, 0.01, model_path, neural_model_path)'''
 
     # MSE_train =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/training_loss.csv", delimiter=",", dtype=float)
     # MSE_test =  np.genfromtxt("../test_result/expt_lorenz/AdamW/0.01/MSE_0/test_loss.csv", delimiter=",", dtype=float)

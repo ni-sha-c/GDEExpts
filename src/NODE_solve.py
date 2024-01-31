@@ -408,6 +408,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
         print("baker")
         for i in range(num_train):
             True_J[i] = F.jacobian(baker, X[i, :])
+            print(True_J[i])
     elif dyn_sys_name == "rossler":
         print("rossler")
         for i in range(num_train):
@@ -418,6 +419,7 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
         for i in range(num_train):
             True_J[i] = F.jacobian(lambda x: hyperchaos(t_eval_point, x), X[i, :], vectorize=True)
             # True_J[i] = Jacobian_Hyperchaos(X[i,:])
+            print(True_J[i])
 
     elif dyn_sys_name == "hyperchaos_hu":
         print("hyperchaos_hu")
@@ -435,26 +437,14 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
     elif dyn_sys_name == "KS":
         print("KS")
         for i in range(num_train):
-            x0 = X[i, :]
-            # L = 16
+            x0 = X[i, :].requires_grad_(True)
             dx = 1 # 0.25
             dt = 0.25
             c = 0.4
 
-            func = lambda x: run_KS(x, c, dx, dt, dt*2, False, device)[1]
-            res = func(x0).squeeze()
-            # print(res.shape)
-            x0.retain_grad()
-
-            cur_J = torch.zeros(res.shape[0], res.shape[0])
-            # do backward for each element 'j'
-            for j in range(res.shape[0]):
-                ele = torch.zeros(res.shape).to(device)
-                ele[j] = 1.0
-                res.backward(ele, retain_graph=True)
-                row_grad = x0.grad.data
-                cur_J[:, j] = row_grad.reshape(row_grad.shape[0], -1).T # Is this correct or is this cur_J[:, j]?
-                x0.grad.data.zero_()
+            f = run_KS(x0, c, dx, dt, dt*2, False, device)
+            cur_J = torch.autograd.grad(f.sum(), x0)[0]
+            print(cur_J)
             True_J[i] = cur_J
 
     print(True_J.shape)

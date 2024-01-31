@@ -105,13 +105,11 @@ class ODE_baker(nn.Module):
     def __init__(self, y_dim=3, n_hidden=32*9):
         super(ODE_baker, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, 32 * 14),
+            nn.Linear(2, 32 * 8),
             nn.GELU(),
-            nn.Linear(32 * 14, 64 * 14),
+            nn.Linear(32 * 8, 64 * 9),
             nn.GELU(),
-            nn.Linear(64 * 14, 64 * 14),
-            nn.GELU(),
-            nn.Linear(64 * 14, 2)
+            nn.Linear(64 * 9, 2)
         )
         # self.t = torch.linspace(0, 0.01, 2)
 

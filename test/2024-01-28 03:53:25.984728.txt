@@ -14,4 +14,4 @@
   "reg_param": 1e-06,
   "optim_name": "AdamW",
   "dyn_sys": "tent_map"
-}
+}{"train loss": 0.00866829681380843, "test loss": 0.0003794976542593126, "max of solution": [1.547525879040084, 1.644956681231181, 1.6526073652236004], "max of weight": [1.5923236668129126, 2.5439657078263767, 0.28784138237246476], "multi step prediction error": 0.0}

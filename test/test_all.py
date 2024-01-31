@@ -160,21 +160,21 @@ if __name__ == '__main__':
         training_traj = whole_traj[:args.integration_time*int(1/args.time_step), :]
         longer_traj = simulate(dyn_sys_func, 0, real_time, x_multi_0, args.time_step)
 
-        fig, (ax1, ax2) = subplots(1,2, figsize=(24,12))
-
-        ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
-        ax2.scatter(whole_traj[:args.num_train, 1], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
-        ax1.xaxis.set_tick_params(labelsize=44)
-        ax1.yaxis.set_tick_params(labelsize=44)
-        ax2.xaxis.set_tick_params(labelsize=44)
-        ax2.yaxis.set_tick_params(labelsize=44)
-        ax1.set_xlabel(r"$x_1$", fontsize=44)
-        ax1.set_ylabel(r"$x_4$", fontsize=44)
-        ax2.set_xlabel(r"$x_2$", fontsize=44)
-        ax2.set_ylabel(r"$x_4$", fontsize=44)
-        tight_layout()
-        path = '../plot/hyper_phase.jpg'
-        fig.savefig(path, format='jpg', dpi=400)
+        if str(args.dyn_sys) == "hyperchoas":
+            fig, (ax1, ax2) = subplots(1,2, figsize=(24,12))
+            ax1.scatter(whole_traj[:args.num_train, 0], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
+            ax2.scatter(whole_traj[:args.num_train, 1], whole_traj[:args.num_train, 3], color="slateblue", s=20, alpha=0.8)
+            ax1.xaxis.set_tick_params(labelsize=44)
+            ax1.yaxis.set_tick_params(labelsize=44)
+            ax2.xaxis.set_tick_params(labelsize=44)
+            ax2.yaxis.set_tick_params(labelsize=44)
+            ax1.set_xlabel(r"$x_1$", fontsize=44)
+            ax1.set_ylabel(r"$x_4$", fontsize=44)
+            ax2.set_xlabel(r"$x_2$", fontsize=44)
+            ax2.set_ylabel(r"$x_4$", fontsize=44)
+            tight_layout()
+            path = '../plot/hyper_phase.jpg'
+            fig.savefig(path, format='jpg', dpi=400)
     
     print("train", training_traj.shape)
 
@@ -221,9 +221,6 @@ if __name__ == '__main__':
     with open(str(timestamp)+'.txt', 'a') as f:
         entry = {'train loss': lh, 'test loss': tl, 'max of solution': ms, 'max of weight': mw, 'multi step prediction error': mse}
         json.dump(entry, f)
-
-    # Plot dist
-
 
 
     # Save Trained Model

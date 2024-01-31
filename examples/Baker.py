@@ -25,15 +25,15 @@ def baker(X):
     '''From "Efficient Computation of Linear Response of Chaotic Attractors with
 One-Dimensional Unstable Manifolds" by Chandramoorthy et al. 2022 '''
 
-    x, y = X
+    x, y = X #[0., 0., 0.5, 0.]
     s1 = 0
-    s2 = 0.
-    s3 = 0.5
+    s2 = 0.5
+    s3 = 0.6
     s4 = 0.
-    x = 2*x + (s1 + s2*math.sin((2*y)/2))*math.sin(x) - math.floor(x/math.pi)*2*math.pi
-    y = (y + (s4 + s3*math.sin(x))*math.sin(2*y) + math.floor(x/math.pi)*2*math.pi)/2
+    x = 2*x + (s1 + s2*torch.sin((2*y)/2))*torch.sin(x) - torch.floor(x/torch.pi)*2*torch.pi
+    y = (y + (s4 + s3*torch.sin(x))*torch.sin(2*y) + torch.floor(x/torch.pi)*2*torch.pi)/2
 
-    x = x % (2*math.pi)
-    y = y % (2*math.pi)
+    x = x % (2*torch.pi)
+    y = y % (2*torch.pi)
     
     return torch.stack([x, y])

@@ -452,24 +452,17 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
             #update x0
-            x0 = true_traj[i]
+            x0 = true_traj[i].requires_grad_(True)
             print("x0", x0.shape)
             v = torch.ones(x0.shape[0]).to(device)
+            
+            dx = 1 # 0.25
+            dt = 0.25
+            c = 0.4
 
-            func = lambda x: run_KS(x, c, dx, dt, dt*2, False, device)[1]
-            res = func(x0).squeeze()
-            print(res.shape)
-            x0.retain_grad()
-
-            cur_J = torch.zeros(res.shape[0], res.shape[0])
-            # do backward for each element 'j'
-            for j in range(res.shape[0]):
-                ele = torch.zeros(res.shape).to(device)
-                ele[j] = 1.0
-                res.backward(ele, retain_graph=True)
-                row_grad = x0.grad.data
-                cur_J[:, j] = row_grad.reshape(row_grad.shape[0], -1).T # Is this correct or is this cur_J[:, j]?
-                x0.grad.data.zero_()
+            f = run_KS(x0, c, dx, dt, dt*2, False, device)
+            cur_J = torch.autograd.grad(f.sum(), x0)[0]
+            print(cur_J)
 
             J = torch.matmul(cur_J.to(device).double(), U.to(device).double())
 
@@ -478,7 +471,8 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
 
             lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q.double() #new axes after iteration
-        
+
+        print("le", lyap_exp)
         lyap_exp = torch.stack(lyap_exp).detach().cpu().numpy()
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
