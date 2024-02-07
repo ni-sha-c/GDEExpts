@@ -3,8 +3,6 @@ from test_metrics import *
 import datetime
 import sys
 import json
-# import ray
-# from ray import tune
 from test_KS import *
 import nolds
 
@@ -30,11 +28,10 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("device: ", device)
 
-
     # Set arguments (hyperparameters)
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
-                  'KS': [run_KS, 16],
+                  'KS': [run_KS, 127],
                   'henon': [henon, 2],
                   'brusselator' : [brusselator, 2],
                   'lorenz_fixed' : [lorenz_fixed, 3],
@@ -47,10 +44,10 @@ if __name__ == '__main__':
     parser.add_argument("--weight_decay", type=float, default=5e-4)
     parser.add_argument("--num_epoch", type=int, default=10000) # 10000
     parser.add_argument("--integration_time", type=int, default=0) #100
-    parser.add_argument("--num_train", type=int, default=1000) #3000
-    parser.add_argument("--num_test", type=int, default=800)#3000
+    parser.add_argument("--num_train", type=int, default=4000) #3000
+    parser.add_argument("--num_test", type=int, default=2000)#3000
     parser.add_argument("--num_trans", type=int, default=0) #10000
-    parser.add_argument("--iters", type=int, default=0)
+    parser.add_argument("--iters", type=int, default=5000)
     parser.add_argument("--minibatch", type=bool, default=False)
     parser.add_argument("--batch_size", type=int, default=500)
     parser.add_argument("--loss_type", default="MSE", choices=["Jacobian", "MSE", "Auto_corr"])
@@ -69,14 +66,13 @@ if __name__ == '__main__':
     timestamp = datetime.datetime.now()
     # Convert the argparse.Namespace object to a dictionary
     args_dict = vars(args)
-    with open(str(timestamp)+'.txt', 'w') as f:
+    with open('../test_result/expt_'+str(args.dyn_sys)+'/'+str(timestamp)+'.txt', 'w') as f:
         json.dump(args_dict, f, indent=2)
 
     # Assign Initial Point of Orbit
-    # L = 256 # n = [128, 256, 512, 700]
-    L = 16 #128
+    L = 128 #128 # n = [128, 256, 512, 700]
     n = L-1 # num of internal node
-    T = 500 #1000 #100
+    T = 1501 #1000 #100
     c = 0.4
 
     dx = L/(n+1)
@@ -95,30 +91,27 @@ if __name__ == '__main__':
     u0 = u0.requires_grad_(True)
 
     # Generate Training/Test/Multi-Step Prediction Data
+    torch.cuda.empty_cache()
     u_list = run_KS(u0, c, dx, dt, T, False, device)
 
-    plot_KS(u_list, dx, L+1, c, T, dt, True, False)
-
-    u_list = u_list[:, :-1] # remove the last boundary node and keep the first boundary node as it is initial condition
+    u_list = u_list[:, 1:-1] # remove the last boundary node and keep the first boundary node as it is initial condition
 
     print('u0', u_list[:, 0])
     print("u", u_list.shape)
 
     # Data split
-    x_grid_idx = 1
-    # dataset = create_data(u_list[:, x_grid_idx], n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
     dataset = create_data(u_list, n_train=args.num_train, n_test=args.num_test, n_nodes=dim, n_trans=args.num_trans)
-
-    X, Y, x_test, y_test = dataset
-    print(X.shape, Y.shape, x_test.shape, y_test.shape)
+    X, Y, X_test, Y_test = dataset
+    print(X.shape, Y.shape, X_test.shape, Y_test.shape)
 
     # Create model
     m = create_NODE(device, args.dyn_sys, n_nodes=dim, n_hidden=64,T=args.time_step).double()
     longer_traj = None
+    torch.cuda.empty_cache()
 
     # Train the model, return node
     if args.loss_type == "Jacobian":
-        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, 0, args.reg_param, multi_step=True, minibatch=args.minibatch, batch_size=args.batch_size)
+        pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = jac_train(dyn_sys_info, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, 0, args.reg_param, multi_step=False, minibatch=args.minibatch, batch_size=args.batch_size)
 
     elif args.loss_type == "Auto_corr":
         pred_train, true_train, pred_test, loss_hist, test_loss_hist, multi_step_error = ac_train(args.dyn_sys, m, device, dataset, longer_traj, args.optim_name, criterion, args.num_epoch, args.lr, args.weight_decay, args.time_step, real_time, args.num_trans, rho, minibatch=args.minibatch, batch_size=args.batch_size)
@@ -138,13 +131,11 @@ if __name__ == '__main__':
             max_weight.append(torch.max(weights).cpu().tolist())
 
     # Maximum solution
-    pred_train = torch.tensor(np.array(pred_test))
-    true_train = torch.tensor(np.array(y_test))
-    print(pred_train.shape, true_train.shape)
+    pred_train = torch.tensor(np.array(pred_train)).squeeze()
+    true_train = torch.tensor(np.array(Y)).squeeze()
+    pred_test = torch.tensor(np.array(pred_test)).squeeze()
+    true_test = torch.tensor(np.array(Y_test)).squeeze()
 
-    # plot_KS(pred_train, dx, L, c, T/4, dt, False, True)
-    # plot_KS(true_train[-1], dx, L, c, T/4, dt, True, False)
-    
     max_solution = [torch.max(pred_train[:, 0]).cpu().tolist(), torch.max(pred_train[:, 1]).cpu().tolist(), torch.max(pred_train[:, 2]).cpu().tolist()]
 
     # Dump Results
@@ -167,35 +158,55 @@ if __name__ == '__main__':
     torch.save(m.state_dict(), model_path)
     print("Saved new model!")
 
+    # Generate multi-step pred
+    # traj = torch.zeros(u_list.shape[0], dim).to(device)
+    # x = u0[:-1]
+    # t_eval_point = torch.linspace(0,dt,2)
+    # for i in range(u_list.shape[0]):
+    #     traj[i] = x
+    #     cur_pred = torchdiffeq.odeint(m, x, t_eval_point, method="rk4")[-1]
+    #     x = cur_pred
 
-    # Save whole trajectory
-    # np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"whole_traj.csv", np.asarray(whole_traj.detach().cpu()), delimiter=",")
+
+    # x = u0[1:-1]
+    # t_eval_point = torch.arange(0,T,dt)
+    # pred_traj = torchdiffeq.odeint(m, x, t_eval_point, method="rk4")
+    # print("shape", pred_traj.shape, u_list.shape)
+
+    # plot trained
+    print("time", args.num_train*dt)
+    print(Y.shape, true_train.shape, pred_train.shape, pred_test.shape)
+    plot_KS(true_test, dx, n, c, true_test.shape[0]*dt, dt, True, False, args.loss_type)
+    plot_KS(pred_test, dx, n, c, true_test.shape[0]*dt, dt, False, True, args.loss_type)
 
     # Save Training/Test Loss
     loss_hist = torch.stack(loss_hist)
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"training_loss.csv", np.asarray(loss_hist.detach().cpu()), delimiter=",")
     np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"test_loss.csv", np.asarray(test_loss_hist), delimiter=",")
 
-    # save trajectory
-    # np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"pred.csv", pred_train.reshape(pred_train.shape[0], -1).detach().cpu().numpy(), delimiter=",")
-    # np.savetxt('../test_result/expt_'+str(args.dyn_sys)+'/'+ args.optim_name + '/' + str(args.time_step) + '/' +"true.csv", true_train.reshape(true_train.shape[0], -1).detach().cpu().numpy(), delimiter=",")
-
-    '''LE_NODE = lyap_exps_ks(args.dyn_sys, dyn_sys_info, u_list, T*int(1/dt), u_list, dx, L, c, T, dt, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)'''
-    # LE_NODE = nolds.lyap_e(pred_train[-1, :, -1], emb_dim=19, matrix_dim=10, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
-    # print("NODE LE: ", LE_NODE)
+    LE_NODE = lyap_exps_ks(args.dyn_sys, dyn_sys_info, u_list, args.iters, u_list, dx, L, c, T, dt, time_step= args.time_step, optim_name=args.optim_name, method="NODE", path=model_path)
+    # LE_NODE = nolds.lyap_e(pred_test[:, 2], emb_dim=19, matrix_dim=10, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
+    print("NODE LE: ", LE_NODE)
+    print("shape", LE_NODE.shape)
 
     # Compute Jacobian Matrix and Lyapunov Exponent of rk4
     # u_list = np.array(u_list.detach().cpu())
 
     LE_rk4 = lyap_exps_ks(args.dyn_sys, dyn_sys_info, u_list, args.iters, u_list, dx, L, c, T, dt, time_step= args.time_step, optim_name=args.optim_name, method="rk4", path=model_path)
-    print("rk4 LE: ", LE_rk4) #T*int(1/dt)
-    LE_rk4 = nolds.lyap_e(true_train[-1, :], emb_dim=10, matrix_dim=3, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
+    # print("rk4 LE: ", LE_rk4) #T*int(1/dt)
+    # LE_rk4 = nolds.lyap_e(true_test[:, 2], emb_dim=19, matrix_dim=10, min_nb=None, min_tsep=0, tau=1, debug_plot=False, debug_data=False, plot_file=None)
     print("rk4 LE: ", LE_rk4)
 
     # Compute || LE_{NODE} - LE_{rk4} ||
-    norm_difference = torch.linalg.norm(torch.tensor(LE_NODE) - torch.tensor(LE_rk4))
+    norm_difference = torch.linalg.norm(torch.tensor(LE_NODE[:16]) - torch.tensor(LE_rk4[:16]))
     print("Norm Difference: ", norm_difference)
 
-    # with open(str(timestamp)+'.txt', 'a') as f:
-    entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
-    json.dump(entry, f)
+    with open('../test_result/expt_'+str(args.dyn_sys)+'/'+str(timestamp)+'.txt', 'a') as f:
+        entry = {'Nerual ODE LE': LE_NODE.detach().cpu().tolist(), 'rk4 LE': LE_rk4.detach().cpu().tolist(), 'norm difference': norm_difference.detach().cpu().tolist()}
+        json.dump(entry, f)
+
+    # NODE LE:  [ 0.14183909  0.10256176  0.0642665   0.02245339 -0.00764637 -0.03447348
+    # -0.06807815 -0.10917487 -0.17748009 -0.35903192]        
+    # rk4 LE:  [ 0.12833937  0.08656747  0.05771196  0.00716725 -0.03819077 -0.07217354
+    # -0.10693418 -0.12887281 -0.20769675 -0.37632966]        
+    # Norm Difference:  tensor(0.0786)

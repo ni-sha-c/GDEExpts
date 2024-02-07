@@ -103,7 +103,7 @@ def create_data(traj, n_train, n_test, n_nodes, n_trans):
 def define_dyn_sys(dyn_sys):
     DYNSYS_MAP = {'sin' : [sin, 1],
                   'tent_map' : [tent_map, 1],
-                  'KS': [run_KS, 16],
+                  'KS': [run_KS, 127],
                   'henon' : [henon, 2],
                   'baker' : [baker, 2],
                   'lv' : [lv, 2],
@@ -442,12 +442,12 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
             dt = 0.25
             c = 0.4
 
-            f = run_KS(x0, c, dx, dt, dt*2, False, device)
-            cur_J = torch.autograd.grad(f.sum(), x0)[0]
-            print(cur_J)
+            # f = run_KS(x0, c, dx, dt, dt*2, False, device)
+            # cur_J = torch.autograd.grad(f.sum(), x0)[0]
+            cur_J = F.jacobian(lambda x: run_KS(x, c, dx, dt, dt*2, False, device), x0, vectorize=True)[-1]
             True_J[i] = cur_J
 
-    print(True_J.shape)
+    print(True_J.shape, True_J[0:2])
     print("Finished Computing True Jacobian")
 
     for i in range(epochs): # looping over epochs
@@ -494,11 +494,11 @@ def jac_train(dyn_sys_info, model, device, dataset, true_t, optim_name, criterio
             # Jacobian Diff Loss
             if (dyn_sys_name == "henon") or (dyn_sys_name == "baker") or (dyn_sys_name == "tent_map"):
                 jacrev = torch.func.jacrev(model)
-                compute_batch_jac = torch.vmap(jacrev)
+                compute_batch_jac = torch.vmap(jacrev, chunk_size=1000)
                 cur_model_J = compute_batch_jac(X).to(device)
             else:
                 jacrev = torch.func.jacrev(model, argnums=1)
-                compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0))
+                compute_batch_jac = torch.vmap(jacrev, in_dims=(None, 0), chunk_size=1000)
                 cur_model_J = compute_batch_jac(t_eval_point, X).to(device)
             train_loss = jacobian_loss(True_J, cur_model_J, MSE_loss, reg_param)
             train_loss.backward()

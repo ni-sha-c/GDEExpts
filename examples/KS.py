@@ -18,6 +18,8 @@ def rhs_KS_implicit(u, dx, device):
     A[0], A[-1], A[:, 0], A[:, -1] = 0, 0, 0, 0 
 
     # ----- fourth derivative ----- #
+
+
     dx4 = dx*dx*dx*dx
     B = tosp.spdiags(torch.vstack((torch.ones(n), -4*torch.ones(n), 6*torch.ones(n), -4*torch.ones(n), torch.ones(n)))/dx4, torch.tensor([-2, -1, 0, 1, 2]), (n-2, n-2)).to(device)
     B = B.to_dense().double()
@@ -82,7 +84,7 @@ def implicit_rk(u, c, dx, dt, device):
     return dt * (3/4*k2 - 1/4*k3 + 1/2*k4)
 
 
-def plot_KS(u_list, dx, n, c, T, dt, train, test):
+def plot_KS(u_list, dx, n, c, T, dt, train, test, loss_type):
     # plot the result
     if torch.is_tensor(u_list):
         u_list = np.array(u_list.detach().cpu())
@@ -90,27 +92,31 @@ def plot_KS(u_list, dx, n, c, T, dt, train, test):
          u_list = np.array(u_list)
     # print("shape", u_list.shape)
 
-    fig, ax = plt.subplots(figsize=(10,8))
-    x = np.arange(0, (n-1)+dx, dx)
+    fig, ax = plt.subplots(figsize=(12,12))
+    x = np.arange(0, n, dx)
     t = np.arange(0, T, dt)
 
     xx, tt = np.meshgrid(x, t)
     levels = np.arange(-4, 4, 0.01)
     cs = ax.contourf(xx, tt, u_list, cmap=cm.jet)
-    fig.colorbar(cs)
+    cbar = fig.colorbar(cs)
+    cbar.ax.tick_params(labelsize=32)
 
-    ax.set_xlabel("x")
-    ax.set_ylabel("t")
+    ax.set_xlabel("X", fontsize=30)
+    ax.set_ylabel("T", fontsize=30)
+    ax.xaxis.set_tick_params(labelsize=30)
+    ax.yaxis.set_tick_params(labelsize=30)
+    plt.tight_layout()
 
-    ax.set_title(f"Kuramoto-Sivashinsky: L = {n-1}")
+    # ax.set_title(f"Kuramoto-Sivashinsky: L = {n-1}")
     if train == True:
-        fig.savefig('../plot/KS/KS_true_train_{0:.1f}.png'.format(c))
+        fig.savefig('../plot/KS/Phase/true_train_'+str(loss_type)+'{0:.1f}.png'.format(c))
     elif test == True:
-        fig.savefig('../plot/KS/KS_pred_train_{0:.1f}.png'.format(c))
+        fig.savefig('../plot/KS/Phase/pred_train_'+str(loss_type)+'{0:.1f}.png'.format(c))
     elif (train == False) and (test == False):
         None
     else:
-        fig.savefig('../plot/KS/KS_{0:.1f}.png'.format(c))
+        fig.savefig('../plot/KS/KS_'+str(loss_type)+'{0:.1f}.png'.format(c))
     return
 
 
@@ -126,8 +132,8 @@ def run_KS(u, c, dx, dt, T, mean, device):
     time_avg = 0
     u_list = []
     while t < T:
-        if t % 10 == 0:
-            print("run_KS", t)
+        # if t % 10 == 0:
+            # print("run_KS", t)
         u = u + explicit_rk(u, c, dx, dt, device) + implicit_rk(u, c, dx, dt, device) 
         u[0], u[-1] = 0., 0.
         u_list.append(u.clone())
@@ -135,7 +141,7 @@ def run_KS(u, c, dx, dt, T, mean, device):
 
     if torch.is_tensor(u):
         u_list = torch.stack(u_list)
-        print('tensor')
+        # print('tensor')
     elif isinstance(u, list):
         print('list')
         list_tensors = [torch.tensor(np.array(u)) for u in u_list]

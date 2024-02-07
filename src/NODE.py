@@ -121,14 +121,23 @@ class ODE_baker(nn.Module):
 
 class ODE_KS (nn.Module):
 
-  def __init__( self , y_dim=2 , n_hidden=4) :
+  def __init__( self , y_dim , n_hidden=4) :
     super(ODE_KS , self ).__init__()
     self.net = nn.Sequential(
-      nn.Linear(16, 32 * 9),
+      nn.Linear(y_dim, 128),
       nn.GELU(),
-      nn.Linear(32 * 9, 64 * 9),
+      nn.Linear(128, 128),
       nn.GELU(),
-      nn.Linear(64 * 9, 16)
+      nn.Linear(128, 128),
+      nn.GELU(),
+      nn.Linear(128, y_dim)
+      # nn.Linear(y_dim, 64 * 9),
+      # nn.GELU(),
+      # nn.Linear(64 * 9, 64 * 9),
+      # nn.GELU(),
+      # nn.Linear(64 * 9, 32 * 9),
+      # nn.GELU(),
+      # nn.Linear(32 * 9, y_dim)
     )
 
   def forward(self, t , y): 

@@ -404,24 +404,32 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
         args: path = path to model '''
 
     # Initialize parameter
-    dyn_sys_func, dyn_sys_name, dim = dyn_sys_info
+    dyn_sys_func, dyn_sys_name, org_dim = dyn_sys_info
+
+    # reorthonormalization
+    epsilon = 1e-6
+    dim = 15
+    N = 100
     print("d", dim)
 
     # QR Method where U = tangent vector, V = regular system
-    U = torch.eye(dim).double()
+    # CHANGE IT TO DIM X M -> THEN IT WILL COMPUTE M LYAPUNOV EXPONENT.!
+    U = torch.eye(*(org_dim, dim)).double()
+    print("U", U)
     lyap_exp = [] #empty list to store the lengths of the orthogonal axes
+    
 
     real_time = iters * time_step
     t_eval_point = torch.linspace(0, time_step, 2)
     tran = 0
-    print("true traj", true_traj.shape)
+    print("true traj ks", true_traj.shape)
 
     if method == "NODE":
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         t_eval_point = t_eval_point.to(device)
 
         # load the saved model
-        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=dim,  n_hidden=64, T=time_step).double()
+        model = create_NODE(device, dyn_sys= dyn_sys, n_nodes=org_dim,  n_hidden=64, T=time_step).double()
         model.load_state_dict(torch.load(path), strict=False)
         model.eval()
 
@@ -432,8 +440,10 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
             #update x0
             x0 = true_traj[i].to(device).double()
             # cur_J = model(x0).clone().detach()
-            cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
-            print(cur_J.shape, U.shape)
+            if (dyn_sys_name =="henon") or (dyn_sys_name == "baker"):
+                cur_J = F.jacobian(model, x0)
+            else:
+                cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[1]
             #print(cur_J)
             J = torch.matmul(cur_J.to("cpu"), U.to("cpu").double())
 
@@ -445,24 +455,50 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
 
+        # for i in range(iters):
+        #     if i % 1000 == 0:
+        #         print(i)
+
+        #     #update x0
+        #     x0 = true_traj[i].to(device).double()
+        #     cur_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), x0)[-1]
+        #     perturbed_J = torch.zeros(cur_J.shape)
+
+        #     # Reorthogonalization steps
+        #     for n in range(dim):
+        #         # Perturb the system
+        #         perturbation = epsilon * U[:, n]
+        #         new_input = x0 + perturbation.to(device)
+        #         # perturbed_traj = torchdiffeq.odeint(model, new_input.to(device), t_eval_point, method="rk4")[-1]
+        #         perturbed_J = F.jacobian(lambda x: torchdiffeq.odeint(model, x, t_eval_point, method="rk4"), new_input)[-1]
+
+
+        #     J = (cur_J - perturbed_J) / epsilon
+        #     print("J shape", J.shape)
+        #     # QR Decomposition for J
+        #     Q, R = torch.linalg.qr(J)
+
+        #     lyap_exp.append(torch.log(abs(R.diagonal())))
+        #     U = Q  # New axes after iteration
+
+
+        LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
+
     else:
         
         for i in range(iters):
-            print("rk4", i) 
+            if i % 1000 == 0:
+                print("rk4", i) 
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
             #update x0
             x0 = true_traj[i].requires_grad_(True)
-            print("x0", x0.shape)
-            v = torch.ones(x0.shape[0]).to(device)
             
             dx = 1 # 0.25
             dt = 0.25
             c = 0.4
 
-            f = run_KS(x0, c, dx, dt, dt*2, False, device)
-            cur_J = torch.autograd.grad(f.sum(), x0)[0]
-            print(cur_J)
+            cur_J = F.jacobian(lambda x: run_KS(x, c, dx, dt, dt*2, False, device), x0, vectorize=True)[-1]
 
             J = torch.matmul(cur_J.to(device).double(), U.to(device).double())
 
@@ -472,7 +508,6 @@ def lyap_exps_ks(dyn_sys, dyn_sys_info, true_traj, iters, u_list, dx, L, c, T, d
             lyap_exp.append(torch.log(abs(R.diagonal())))
             U = Q.double() #new axes after iteration
 
-        print("le", lyap_exp)
         lyap_exp = torch.stack(lyap_exp).detach().cpu().numpy()
 
         LE = [sum([lyap_exp[i][j] for i in range(iters)]) / (real_time) for j in range(dim)]
