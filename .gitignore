@@ -1,2 +1,5 @@
 # ignore folders
 test_result/expt_tent_map/AdamW/0.01/
+
+# ignore git file
+core.git.128444.1705518844.atl1-1-03-002-31-0.pace.gatech.edu
